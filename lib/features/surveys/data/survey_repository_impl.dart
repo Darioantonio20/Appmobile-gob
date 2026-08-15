@@ -57,6 +57,11 @@ class SurveyRepositoryImpl implements SurveyRepository {
     required Survey survey,
     String? localId,
     required Map<String, Object?> answers,
+    String? surveyorId,
+    String? surveyorName,
+    double? latitude,
+    double? longitude,
+    String? appVersion,
   }) async {
     final now = DateTime.now();
     final existing = localId == null ? null : await _local.getResponse(localId);
@@ -73,6 +78,12 @@ class SurveyRepositoryImpl implements SurveyRepository {
       syncedAt: existing?.syncedAt,
       retryCount: existing?.retryCount ?? 0,
       lastError: existing?.lastError,
+      surveyorId: surveyorId ?? existing?.surveyorId,
+      surveyorName: surveyorName ?? existing?.surveyorName,
+      startedAt: existing?.startedAt ?? now,
+      latitude: latitude ?? existing?.latitude,
+      longitude: longitude ?? existing?.longitude,
+      appVersion: appVersion ?? existing?.appVersion,
     );
     await _local.saveResponse(response);
     return response;
@@ -108,6 +119,16 @@ class SurveyRepositoryImpl implements SurveyRepository {
     // offline) the sync engine's reconnect/timer/manual-retry paths will
     // pick it up later. Data is never lost, only delayed.
     unawaited(_syncOne(submitted));
+  }
+
+  @override
+  Future<void> attachDraftMetadata({
+    required String localId,
+    double? latitude,
+    double? longitude,
+    String? appVersion,
+  }) {
+    return _local.attachMetadata(localId, latitude: latitude, longitude: longitude, appVersion: appVersion);
   }
 
   @override

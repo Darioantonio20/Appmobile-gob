@@ -11,18 +11,23 @@ part 'app_database.g.dart';
 
 /// Locally-cached surveys, as last fetched from the backend.
 ///
-/// Questions are stored as a JSON blob ([questionsJson]) rather than a
-/// normalized child table: a survey's question list is always read/written
-/// as one unit (never queried question-by-question), so normalizing it
-/// would only add join complexity for no benefit. The JSON is decoded into
-/// typed [SurveyQuestion] objects at the repository boundary — nothing
-/// above `data/` ever touches raw JSON.
+/// Sections/questions are stored as one JSON blob ([sectionsJson]) rather
+/// than normalized child tables: a survey's structure is always
+/// read/written as one unit (never queried section-by-section or
+/// question-by-question), so normalizing it would only add join complexity
+/// for no benefit. The JSON is decoded into typed [SurveySection] objects
+/// at the repository boundary — nothing above `data/` ever touches raw
+/// JSON.
 @DataClassName('SurveyRow')
 class SurveysTable extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
   TextColumn get description => text().nullable()();
-  TextColumn get questionsJson => text()();
+
+  /// The survey's [SurveySection] list (each with its nested questions),
+  /// as JSON — see the class doc for why this whole tree is one blob
+  /// rather than normalized tables.
+  TextColumn get sectionsJson => text()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get fetchedAt => dateTime()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
@@ -70,6 +75,14 @@ class SurveyResponsesTable extends Table {
   IntColumn get retryCount => integer().withDefault(const Constant(0))();
   TextColumn get lastError => text().nullable()();
 
+  // --- Audit metadata (added in schema v2) ---
+  TextColumn get surveyorId => text().nullable()();
+  TextColumn get surveyorName => text().nullable()();
+  DateTimeColumn get startedAt => dateTime().nullable()();
+  RealColumn get latitude => real().nullable()();
+  RealColumn get longitude => real().nullable()();
+  TextColumn get appVersion => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {localId};
 }
@@ -83,7 +96,31 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withConnection(super.connection);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 3;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(surveyResponsesTable, surveyResponsesTable.surveyorId);
+            await m.addColumn(surveyResponsesTable, surveyResponsesTable.surveyorName);
+            await m.addColumn(surveyResponsesTable, surveyResponsesTable.startedAt);
+            await m.addColumn(surveyResponsesTable, surveyResponsesTable.latitude);
+            await m.addColumn(surveyResponsesTable, surveyResponsesTable.longitude);
+            await m.addColumn(surveyResponsesTable, surveyResponsesTable.appVersion);
+          }
+          if (from < 3) {
+            // surveys_table is a pure, disposable cache (always fully
+            // replaced on the next successful `/surveys` fetch — see
+            // `replaceAllSurveys`), so the simplest safe migration for its
+            // reshaped `questionsJson` → `sectionsJson` column is to just
+            // recreate the table empty rather than transform old rows.
+            await m.deleteTable('surveys_table');
+            await m.createTable(surveysTable);
+          }
+        },
+      );
 
   // ---------------------------------------------------------------------
   // Surveys
@@ -166,6 +203,23 @@ class AppDatabase extends _$AppDatabase {
         retryCount: retryCount == null ? const Value.absent() : Value(retryCount),
         lastError: lastError,
         updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Narrow update used to attach GPS/app-version metadata without
+  /// touching `answersJson` — see `SurveyRepository.attachDraftMetadata`.
+  Future<void> updateResponseMetadata(
+    String localId, {
+    double? latitude,
+    double? longitude,
+    String? appVersion,
+  }) {
+    return (update(surveyResponsesTable)..where((t) => t.localId.equals(localId))).write(
+      SurveyResponsesTableCompanion(
+        latitude: latitude == null ? const Value.absent() : Value(latitude),
+        longitude: longitude == null ? const Value.absent() : Value(longitude),
+        appVersion: appVersion == null ? const Value.absent() : Value(appVersion),
       ),
     );
   }

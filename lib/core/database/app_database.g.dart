@@ -38,12 +38,12 @@ class $SurveysTableTable extends SurveysTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _questionsJsonMeta = const VerificationMeta(
-    'questionsJson',
+  static const VerificationMeta _sectionsJsonMeta = const VerificationMeta(
+    'sectionsJson',
   );
   @override
-  late final GeneratedColumn<String> questionsJson = GeneratedColumn<String>(
-    'questions_json',
+  late final GeneratedColumn<String> sectionsJson = GeneratedColumn<String>(
+    'sections_json',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -91,7 +91,7 @@ class $SurveysTableTable extends SurveysTable
     id,
     title,
     description,
-    questionsJson,
+    sectionsJson,
     updatedAt,
     fetchedAt,
     isActive,
@@ -130,16 +130,16 @@ class $SurveysTableTable extends SurveysTable
         ),
       );
     }
-    if (data.containsKey('questions_json')) {
+    if (data.containsKey('sections_json')) {
       context.handle(
-        _questionsJsonMeta,
-        questionsJson.isAcceptableOrUnknown(
-          data['questions_json']!,
-          _questionsJsonMeta,
+        _sectionsJsonMeta,
+        sectionsJson.isAcceptableOrUnknown(
+          data['sections_json']!,
+          _sectionsJsonMeta,
         ),
       );
     } else if (isInserting) {
-      context.missing(_questionsJsonMeta);
+      context.missing(_sectionsJsonMeta);
     }
     if (data.containsKey('updated_at')) {
       context.handle(
@@ -184,9 +184,9 @@ class $SurveysTableTable extends SurveysTable
         DriftSqlType.string,
         data['${effectivePrefix}description'],
       ),
-      questionsJson: attachedDatabase.typeMapping.read(
+      sectionsJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}questions_json'],
+        data['${effectivePrefix}sections_json'],
       )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -213,7 +213,11 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
   final String id;
   final String title;
   final String? description;
-  final String questionsJson;
+
+  /// The survey's [SurveySection] list (each with its nested questions),
+  /// as JSON — see the class doc for why this whole tree is one blob
+  /// rather than normalized tables.
+  final String sectionsJson;
   final DateTime updatedAt;
   final DateTime fetchedAt;
   final bool isActive;
@@ -221,7 +225,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     required this.id,
     required this.title,
     this.description,
-    required this.questionsJson,
+    required this.sectionsJson,
     required this.updatedAt,
     required this.fetchedAt,
     required this.isActive,
@@ -234,7 +238,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
-    map['questions_json'] = Variable<String>(questionsJson);
+    map['sections_json'] = Variable<String>(sectionsJson);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['fetched_at'] = Variable<DateTime>(fetchedAt);
     map['is_active'] = Variable<bool>(isActive);
@@ -248,7 +252,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
-      questionsJson: Value(questionsJson),
+      sectionsJson: Value(sectionsJson),
       updatedAt: Value(updatedAt),
       fetchedAt: Value(fetchedAt),
       isActive: Value(isActive),
@@ -264,7 +268,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       id: serializer.fromJson<String>(json['id']),
       title: serializer.fromJson<String>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
-      questionsJson: serializer.fromJson<String>(json['questionsJson']),
+      sectionsJson: serializer.fromJson<String>(json['sectionsJson']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
       isActive: serializer.fromJson<bool>(json['isActive']),
@@ -277,7 +281,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       'id': serializer.toJson<String>(id),
       'title': serializer.toJson<String>(title),
       'description': serializer.toJson<String?>(description),
-      'questionsJson': serializer.toJson<String>(questionsJson),
+      'sectionsJson': serializer.toJson<String>(sectionsJson),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
       'isActive': serializer.toJson<bool>(isActive),
@@ -288,7 +292,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     String? id,
     String? title,
     Value<String?> description = const Value.absent(),
-    String? questionsJson,
+    String? sectionsJson,
     DateTime? updatedAt,
     DateTime? fetchedAt,
     bool? isActive,
@@ -296,7 +300,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     id: id ?? this.id,
     title: title ?? this.title,
     description: description.present ? description.value : this.description,
-    questionsJson: questionsJson ?? this.questionsJson,
+    sectionsJson: sectionsJson ?? this.sectionsJson,
     updatedAt: updatedAt ?? this.updatedAt,
     fetchedAt: fetchedAt ?? this.fetchedAt,
     isActive: isActive ?? this.isActive,
@@ -308,9 +312,9 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       description: data.description.present
           ? data.description.value
           : this.description,
-      questionsJson: data.questionsJson.present
-          ? data.questionsJson.value
-          : this.questionsJson,
+      sectionsJson: data.sectionsJson.present
+          ? data.sectionsJson.value
+          : this.sectionsJson,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
@@ -323,7 +327,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
-          ..write('questionsJson: $questionsJson, ')
+          ..write('sectionsJson: $sectionsJson, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('isActive: $isActive')
@@ -336,7 +340,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     id,
     title,
     description,
-    questionsJson,
+    sectionsJson,
     updatedAt,
     fetchedAt,
     isActive,
@@ -348,7 +352,7 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
           other.id == this.id &&
           other.title == this.title &&
           other.description == this.description &&
-          other.questionsJson == this.questionsJson &&
+          other.sectionsJson == this.sectionsJson &&
           other.updatedAt == this.updatedAt &&
           other.fetchedAt == this.fetchedAt &&
           other.isActive == this.isActive);
@@ -358,7 +362,7 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
   final Value<String> id;
   final Value<String> title;
   final Value<String?> description;
-  final Value<String> questionsJson;
+  final Value<String> sectionsJson;
   final Value<DateTime> updatedAt;
   final Value<DateTime> fetchedAt;
   final Value<bool> isActive;
@@ -367,7 +371,7 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     this.id = const Value.absent(),
     this.title = const Value.absent(),
     this.description = const Value.absent(),
-    this.questionsJson = const Value.absent(),
+    this.sectionsJson = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.fetchedAt = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -377,21 +381,21 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     required String id,
     required String title,
     this.description = const Value.absent(),
-    required String questionsJson,
+    required String sectionsJson,
     required DateTime updatedAt,
     required DateTime fetchedAt,
     this.isActive = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
-       questionsJson = Value(questionsJson),
+       sectionsJson = Value(sectionsJson),
        updatedAt = Value(updatedAt),
        fetchedAt = Value(fetchedAt);
   static Insertable<SurveyRow> custom({
     Expression<String>? id,
     Expression<String>? title,
     Expression<String>? description,
-    Expression<String>? questionsJson,
+    Expression<String>? sectionsJson,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? fetchedAt,
     Expression<bool>? isActive,
@@ -401,7 +405,7 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
       if (id != null) 'id': id,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
-      if (questionsJson != null) 'questions_json': questionsJson,
+      if (sectionsJson != null) 'sections_json': sectionsJson,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (fetchedAt != null) 'fetched_at': fetchedAt,
       if (isActive != null) 'is_active': isActive,
@@ -413,7 +417,7 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     Value<String>? id,
     Value<String>? title,
     Value<String?>? description,
-    Value<String>? questionsJson,
+    Value<String>? sectionsJson,
     Value<DateTime>? updatedAt,
     Value<DateTime>? fetchedAt,
     Value<bool>? isActive,
@@ -423,7 +427,7 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
-      questionsJson: questionsJson ?? this.questionsJson,
+      sectionsJson: sectionsJson ?? this.sectionsJson,
       updatedAt: updatedAt ?? this.updatedAt,
       fetchedAt: fetchedAt ?? this.fetchedAt,
       isActive: isActive ?? this.isActive,
@@ -443,8 +447,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
-    if (questionsJson.present) {
-      map['questions_json'] = Variable<String>(questionsJson.value);
+    if (sectionsJson.present) {
+      map['sections_json'] = Variable<String>(sectionsJson.value);
     }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
@@ -467,7 +471,7 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
-          ..write('questionsJson: $questionsJson, ')
+          ..write('sectionsJson: $sectionsJson, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('isActive: $isActive, ')
@@ -615,6 +619,72 @@ class $SurveyResponsesTableTable extends SurveyResponsesTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _surveyorIdMeta = const VerificationMeta(
+    'surveyorId',
+  );
+  @override
+  late final GeneratedColumn<String> surveyorId = GeneratedColumn<String>(
+    'surveyor_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _surveyorNameMeta = const VerificationMeta(
+    'surveyorName',
+  );
+  @override
+  late final GeneratedColumn<String> surveyorName = GeneratedColumn<String>(
+    'surveyor_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _appVersionMeta = const VerificationMeta(
+    'appVersion',
+  );
+  @override
+  late final GeneratedColumn<String> appVersion = GeneratedColumn<String>(
+    'app_version',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     localId,
@@ -629,6 +699,12 @@ class $SurveyResponsesTableTable extends SurveyResponsesTable
     syncedAt,
     retryCount,
     lastError,
+    surveyorId,
+    surveyorName,
+    startedAt,
+    latitude,
+    longitude,
+    appVersion,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -735,6 +811,45 @@ class $SurveyResponsesTableTable extends SurveyResponsesTable
         lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
       );
     }
+    if (data.containsKey('surveyor_id')) {
+      context.handle(
+        _surveyorIdMeta,
+        surveyorId.isAcceptableOrUnknown(data['surveyor_id']!, _surveyorIdMeta),
+      );
+    }
+    if (data.containsKey('surveyor_name')) {
+      context.handle(
+        _surveyorNameMeta,
+        surveyorName.isAcceptableOrUnknown(
+          data['surveyor_name']!,
+          _surveyorNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    }
+    if (data.containsKey('app_version')) {
+      context.handle(
+        _appVersionMeta,
+        appVersion.isAcceptableOrUnknown(data['app_version']!, _appVersionMeta),
+      );
+    }
     return context;
   }
 
@@ -792,6 +907,30 @@ class $SurveyResponsesTableTable extends SurveyResponsesTable
         DriftSqlType.string,
         data['${effectivePrefix}last_error'],
       ),
+      surveyorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}surveyor_id'],
+      ),
+      surveyorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}surveyor_name'],
+      ),
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      ),
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      ),
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      ),
+      appVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}app_version'],
+      ),
     );
   }
 
@@ -817,9 +956,9 @@ class SurveyResponseRow extends DataClass
   /// replaced or the survey is no longer active.
   final String surveyTitle;
 
-  /// `{ questionId: answerValue }`. Answer shapes vary by question type
-  /// (String, List<String>, num, bool) — see `SurveyAnswers` for the typed
-  /// read/write API around this blob.
+  /// `{ questionId: answerValue }`. Answer shapes vary by question type —
+  /// text, a string list, or a number — decoded into typed answers at the
+  /// `data/` layer boundary (see `survey_local_datasource.dart`).
   final String answersJson;
 
   /// [SyncStatus] name: draft | pending | syncing | synced | failed.
@@ -830,6 +969,12 @@ class SurveyResponseRow extends DataClass
   final DateTime? syncedAt;
   final int retryCount;
   final String? lastError;
+  final String? surveyorId;
+  final String? surveyorName;
+  final DateTime? startedAt;
+  final double? latitude;
+  final double? longitude;
+  final String? appVersion;
   const SurveyResponseRow({
     required this.localId,
     this.serverId,
@@ -843,6 +988,12 @@ class SurveyResponseRow extends DataClass
     this.syncedAt,
     required this.retryCount,
     this.lastError,
+    this.surveyorId,
+    this.surveyorName,
+    this.startedAt,
+    this.latitude,
+    this.longitude,
+    this.appVersion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -866,6 +1017,24 @@ class SurveyResponseRow extends DataClass
     map['retry_count'] = Variable<int>(retryCount);
     if (!nullToAbsent || lastError != null) {
       map['last_error'] = Variable<String>(lastError);
+    }
+    if (!nullToAbsent || surveyorId != null) {
+      map['surveyor_id'] = Variable<String>(surveyorId);
+    }
+    if (!nullToAbsent || surveyorName != null) {
+      map['surveyor_name'] = Variable<String>(surveyorName);
+    }
+    if (!nullToAbsent || startedAt != null) {
+      map['started_at'] = Variable<DateTime>(startedAt);
+    }
+    if (!nullToAbsent || latitude != null) {
+      map['latitude'] = Variable<double>(latitude);
+    }
+    if (!nullToAbsent || longitude != null) {
+      map['longitude'] = Variable<double>(longitude);
+    }
+    if (!nullToAbsent || appVersion != null) {
+      map['app_version'] = Variable<String>(appVersion);
     }
     return map;
   }
@@ -892,6 +1061,24 @@ class SurveyResponseRow extends DataClass
       lastError: lastError == null && nullToAbsent
           ? const Value.absent()
           : Value(lastError),
+      surveyorId: surveyorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(surveyorId),
+      surveyorName: surveyorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(surveyorName),
+      startedAt: startedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startedAt),
+      latitude: latitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(latitude),
+      longitude: longitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longitude),
+      appVersion: appVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(appVersion),
     );
   }
 
@@ -913,6 +1100,12 @@ class SurveyResponseRow extends DataClass
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       retryCount: serializer.fromJson<int>(json['retryCount']),
       lastError: serializer.fromJson<String?>(json['lastError']),
+      surveyorId: serializer.fromJson<String?>(json['surveyorId']),
+      surveyorName: serializer.fromJson<String?>(json['surveyorName']),
+      startedAt: serializer.fromJson<DateTime?>(json['startedAt']),
+      latitude: serializer.fromJson<double?>(json['latitude']),
+      longitude: serializer.fromJson<double?>(json['longitude']),
+      appVersion: serializer.fromJson<String?>(json['appVersion']),
     );
   }
   @override
@@ -931,6 +1124,12 @@ class SurveyResponseRow extends DataClass
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'retryCount': serializer.toJson<int>(retryCount),
       'lastError': serializer.toJson<String?>(lastError),
+      'surveyorId': serializer.toJson<String?>(surveyorId),
+      'surveyorName': serializer.toJson<String?>(surveyorName),
+      'startedAt': serializer.toJson<DateTime?>(startedAt),
+      'latitude': serializer.toJson<double?>(latitude),
+      'longitude': serializer.toJson<double?>(longitude),
+      'appVersion': serializer.toJson<String?>(appVersion),
     };
   }
 
@@ -947,6 +1146,12 @@ class SurveyResponseRow extends DataClass
     Value<DateTime?> syncedAt = const Value.absent(),
     int? retryCount,
     Value<String?> lastError = const Value.absent(),
+    Value<String?> surveyorId = const Value.absent(),
+    Value<String?> surveyorName = const Value.absent(),
+    Value<DateTime?> startedAt = const Value.absent(),
+    Value<double?> latitude = const Value.absent(),
+    Value<double?> longitude = const Value.absent(),
+    Value<String?> appVersion = const Value.absent(),
   }) => SurveyResponseRow(
     localId: localId ?? this.localId,
     serverId: serverId.present ? serverId.value : this.serverId,
@@ -960,6 +1165,12 @@ class SurveyResponseRow extends DataClass
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
     retryCount: retryCount ?? this.retryCount,
     lastError: lastError.present ? lastError.value : this.lastError,
+    surveyorId: surveyorId.present ? surveyorId.value : this.surveyorId,
+    surveyorName: surveyorName.present ? surveyorName.value : this.surveyorName,
+    startedAt: startedAt.present ? startedAt.value : this.startedAt,
+    latitude: latitude.present ? latitude.value : this.latitude,
+    longitude: longitude.present ? longitude.value : this.longitude,
+    appVersion: appVersion.present ? appVersion.value : this.appVersion,
   );
   SurveyResponseRow copyWithCompanion(SurveyResponsesTableCompanion data) {
     return SurveyResponseRow(
@@ -983,6 +1194,18 @@ class SurveyResponseRow extends DataClass
           ? data.retryCount.value
           : this.retryCount,
       lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      surveyorId: data.surveyorId.present
+          ? data.surveyorId.value
+          : this.surveyorId,
+      surveyorName: data.surveyorName.present
+          ? data.surveyorName.value
+          : this.surveyorName,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      appVersion: data.appVersion.present
+          ? data.appVersion.value
+          : this.appVersion,
     );
   }
 
@@ -1000,7 +1223,13 @@ class SurveyResponseRow extends DataClass
           ..write('submittedAt: $submittedAt, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('retryCount: $retryCount, ')
-          ..write('lastError: $lastError')
+          ..write('lastError: $lastError, ')
+          ..write('surveyorId: $surveyorId, ')
+          ..write('surveyorName: $surveyorName, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('appVersion: $appVersion')
           ..write(')'))
         .toString();
   }
@@ -1019,6 +1248,12 @@ class SurveyResponseRow extends DataClass
     syncedAt,
     retryCount,
     lastError,
+    surveyorId,
+    surveyorName,
+    startedAt,
+    latitude,
+    longitude,
+    appVersion,
   );
   @override
   bool operator ==(Object other) =>
@@ -1035,7 +1270,13 @@ class SurveyResponseRow extends DataClass
           other.submittedAt == this.submittedAt &&
           other.syncedAt == this.syncedAt &&
           other.retryCount == this.retryCount &&
-          other.lastError == this.lastError);
+          other.lastError == this.lastError &&
+          other.surveyorId == this.surveyorId &&
+          other.surveyorName == this.surveyorName &&
+          other.startedAt == this.startedAt &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.appVersion == this.appVersion);
 }
 
 class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
@@ -1051,6 +1292,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
   final Value<DateTime?> syncedAt;
   final Value<int> retryCount;
   final Value<String?> lastError;
+  final Value<String?> surveyorId;
+  final Value<String?> surveyorName;
+  final Value<DateTime?> startedAt;
+  final Value<double?> latitude;
+  final Value<double?> longitude;
+  final Value<String?> appVersion;
   final Value<int> rowid;
   const SurveyResponsesTableCompanion({
     this.localId = const Value.absent(),
@@ -1065,6 +1312,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
     this.syncedAt = const Value.absent(),
     this.retryCount = const Value.absent(),
     this.lastError = const Value.absent(),
+    this.surveyorId = const Value.absent(),
+    this.surveyorName = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.appVersion = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveyResponsesTableCompanion.insert({
@@ -1080,6 +1333,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
     this.syncedAt = const Value.absent(),
     this.retryCount = const Value.absent(),
     this.lastError = const Value.absent(),
+    this.surveyorId = const Value.absent(),
+    this.surveyorName = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.appVersion = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : localId = Value(localId),
        surveyId = Value(surveyId),
@@ -1100,6 +1359,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
     Expression<DateTime>? syncedAt,
     Expression<int>? retryCount,
     Expression<String>? lastError,
+    Expression<String>? surveyorId,
+    Expression<String>? surveyorName,
+    Expression<DateTime>? startedAt,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<String>? appVersion,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1115,6 +1380,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
       if (syncedAt != null) 'synced_at': syncedAt,
       if (retryCount != null) 'retry_count': retryCount,
       if (lastError != null) 'last_error': lastError,
+      if (surveyorId != null) 'surveyor_id': surveyorId,
+      if (surveyorName != null) 'surveyor_name': surveyorName,
+      if (startedAt != null) 'started_at': startedAt,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (appVersion != null) 'app_version': appVersion,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1132,6 +1403,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
     Value<DateTime?>? syncedAt,
     Value<int>? retryCount,
     Value<String?>? lastError,
+    Value<String?>? surveyorId,
+    Value<String?>? surveyorName,
+    Value<DateTime?>? startedAt,
+    Value<double?>? latitude,
+    Value<double?>? longitude,
+    Value<String?>? appVersion,
     Value<int>? rowid,
   }) {
     return SurveyResponsesTableCompanion(
@@ -1147,6 +1424,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
       syncedAt: syncedAt ?? this.syncedAt,
       retryCount: retryCount ?? this.retryCount,
       lastError: lastError ?? this.lastError,
+      surveyorId: surveyorId ?? this.surveyorId,
+      surveyorName: surveyorName ?? this.surveyorName,
+      startedAt: startedAt ?? this.startedAt,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      appVersion: appVersion ?? this.appVersion,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1190,6 +1473,24 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
     if (lastError.present) {
       map['last_error'] = Variable<String>(lastError.value);
     }
+    if (surveyorId.present) {
+      map['surveyor_id'] = Variable<String>(surveyorId.value);
+    }
+    if (surveyorName.present) {
+      map['surveyor_name'] = Variable<String>(surveyorName.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (appVersion.present) {
+      map['app_version'] = Variable<String>(appVersion.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1211,6 +1512,12 @@ class SurveyResponsesTableCompanion extends UpdateCompanion<SurveyResponseRow> {
           ..write('syncedAt: $syncedAt, ')
           ..write('retryCount: $retryCount, ')
           ..write('lastError: $lastError, ')
+          ..write('surveyorId: $surveyorId, ')
+          ..write('surveyorName: $surveyorName, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('appVersion: $appVersion, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1238,7 +1545,7 @@ typedef $$SurveysTableTableCreateCompanionBuilder =
       required String id,
       required String title,
       Value<String?> description,
-      required String questionsJson,
+      required String sectionsJson,
       required DateTime updatedAt,
       required DateTime fetchedAt,
       Value<bool> isActive,
@@ -1249,7 +1556,7 @@ typedef $$SurveysTableTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> title,
       Value<String?> description,
-      Value<String> questionsJson,
+      Value<String> sectionsJson,
       Value<DateTime> updatedAt,
       Value<DateTime> fetchedAt,
       Value<bool> isActive,
@@ -1280,8 +1587,8 @@ class $$SurveysTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get questionsJson => $composableBuilder(
-    column: $table.questionsJson,
+  ColumnFilters<String> get sectionsJson => $composableBuilder(
+    column: $table.sectionsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1325,8 +1632,8 @@ class $$SurveysTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get questionsJson => $composableBuilder(
-    column: $table.questionsJson,
+  ColumnOrderings<String> get sectionsJson => $composableBuilder(
+    column: $table.sectionsJson,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -1366,8 +1673,8 @@ class $$SurveysTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get questionsJson => $composableBuilder(
-    column: $table.questionsJson,
+  GeneratedColumn<String> get sectionsJson => $composableBuilder(
+    column: $table.sectionsJson,
     builder: (column) => column,
   );
 
@@ -1415,7 +1722,7 @@ class $$SurveysTableTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
-                Value<String> questionsJson = const Value.absent(),
+                Value<String> sectionsJson = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime> fetchedAt = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
@@ -1424,7 +1731,7 @@ class $$SurveysTableTableTableManager
                 id: id,
                 title: title,
                 description: description,
-                questionsJson: questionsJson,
+                sectionsJson: sectionsJson,
                 updatedAt: updatedAt,
                 fetchedAt: fetchedAt,
                 isActive: isActive,
@@ -1435,7 +1742,7 @@ class $$SurveysTableTableTableManager
                 required String id,
                 required String title,
                 Value<String?> description = const Value.absent(),
-                required String questionsJson,
+                required String sectionsJson,
                 required DateTime updatedAt,
                 required DateTime fetchedAt,
                 Value<bool> isActive = const Value.absent(),
@@ -1444,7 +1751,7 @@ class $$SurveysTableTableTableManager
                 id: id,
                 title: title,
                 description: description,
-                questionsJson: questionsJson,
+                sectionsJson: sectionsJson,
                 updatedAt: updatedAt,
                 fetchedAt: fetchedAt,
                 isActive: isActive,
@@ -1486,6 +1793,12 @@ typedef $$SurveyResponsesTableTableCreateCompanionBuilder =
       Value<DateTime?> syncedAt,
       Value<int> retryCount,
       Value<String?> lastError,
+      Value<String?> surveyorId,
+      Value<String?> surveyorName,
+      Value<DateTime?> startedAt,
+      Value<double?> latitude,
+      Value<double?> longitude,
+      Value<String?> appVersion,
       Value<int> rowid,
     });
 typedef $$SurveyResponsesTableTableUpdateCompanionBuilder =
@@ -1502,6 +1815,12 @@ typedef $$SurveyResponsesTableTableUpdateCompanionBuilder =
       Value<DateTime?> syncedAt,
       Value<int> retryCount,
       Value<String?> lastError,
+      Value<String?> surveyorId,
+      Value<String?> surveyorName,
+      Value<DateTime?> startedAt,
+      Value<double?> latitude,
+      Value<double?> longitude,
+      Value<String?> appVersion,
       Value<int> rowid,
     });
 
@@ -1571,6 +1890,36 @@ class $$SurveyResponsesTableTableFilterComposer
 
   ColumnFilters<String> get lastError => $composableBuilder(
     column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get surveyorId => $composableBuilder(
+    column: $table.surveyorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get surveyorName => $composableBuilder(
+    column: $table.surveyorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get appVersion => $composableBuilder(
+    column: $table.appVersion,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1643,6 +1992,36 @@ class $$SurveyResponsesTableTableOrderingComposer
     column: $table.lastError,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get surveyorId => $composableBuilder(
+    column: $table.surveyorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get surveyorName => $composableBuilder(
+    column: $table.surveyorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get appVersion => $composableBuilder(
+    column: $table.appVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveyResponsesTableTableAnnotationComposer
@@ -1697,6 +2076,30 @@ class $$SurveyResponsesTableTableAnnotationComposer
 
   GeneratedColumn<String> get lastError =>
       $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<String> get surveyorId => $composableBuilder(
+    column: $table.surveyorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get surveyorName => $composableBuilder(
+    column: $table.surveyorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get appVersion => $composableBuilder(
+    column: $table.appVersion,
+    builder: (column) => column,
+  );
 }
 
 class $$SurveyResponsesTableTableTableManager
@@ -1754,6 +2157,12 @@ class $$SurveyResponsesTableTableTableManager
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<int> retryCount = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
+                Value<String?> surveyorId = const Value.absent(),
+                Value<String?> surveyorName = const Value.absent(),
+                Value<DateTime?> startedAt = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
+                Value<String?> appVersion = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveyResponsesTableCompanion(
                 localId: localId,
@@ -1768,6 +2177,12 @@ class $$SurveyResponsesTableTableTableManager
                 syncedAt: syncedAt,
                 retryCount: retryCount,
                 lastError: lastError,
+                surveyorId: surveyorId,
+                surveyorName: surveyorName,
+                startedAt: startedAt,
+                latitude: latitude,
+                longitude: longitude,
+                appVersion: appVersion,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1784,6 +2199,12 @@ class $$SurveyResponsesTableTableTableManager
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<int> retryCount = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
+                Value<String?> surveyorId = const Value.absent(),
+                Value<String?> surveyorName = const Value.absent(),
+                Value<DateTime?> startedAt = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
+                Value<String?> appVersion = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveyResponsesTableCompanion.insert(
                 localId: localId,
@@ -1798,6 +2219,12 @@ class $$SurveyResponsesTableTableTableManager
                 syncedAt: syncedAt,
                 retryCount: retryCount,
                 lastError: lastError,
+                surveyorId: surveyorId,
+                surveyorName: surveyorName,
+                startedAt: startedAt,
+                latitude: latitude,
+                longitude: longitude,
+                appVersion: appVersion,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

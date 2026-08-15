@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/location/location_service.dart';
+import '../../../core/utils/app_info.dart';
+import '../../auth/presentation/auth_controller.dart';
 import '../data/survey_repository_impl.dart';
 import '../domain/survey.dart';
 
@@ -48,19 +51,42 @@ class SurveyFillReady extends SurveyFillState {
   final Survey survey;
   final String localId;
   final Map<String, Object?> answers;
+
+  /// Flat index into [Survey.allQuestions] — sections are a display/grouping
+  /// concept layered on top of one linear question sequence, which keeps
+  /// the "one question at a time" accessible flow from getting more complex
+  /// than it needs to be.
   final int currentQuestionIndex;
   final bool isSaving;
   final bool isSubmitting;
   final bool showValidation;
   final bool justSubmitted;
 
-  SurveyQuestion get currentQuestion => survey.questions[currentQuestionIndex];
+  List<SurveyQuestion> get _allQuestions => survey.allQuestions;
+
+  SurveyQuestion get currentQuestion => _allQuestions[currentQuestionIndex];
+
+  /// The section [currentQuestion] belongs to, and that section's 1-based
+  /// position — feeds the "Sección X de Y" label.
+  (SurveySection section, int number) get currentSectionInfo {
+    var cursor = 0;
+    for (var i = 0; i < survey.sections.length; i++) {
+      final section = survey.sections[i];
+      if (currentQuestionIndex < cursor + section.questions.length) return (section, i + 1);
+      cursor += section.questions.length;
+    }
+    return (survey.sections.last, survey.sections.length);
+  }
+
   bool get isFirstQuestion => currentQuestionIndex == 0;
-  bool get isLastQuestion => currentQuestionIndex == survey.questions.length - 1;
-  double get progress =>
-      survey.questions.isEmpty ? 0 : (currentQuestionIndex + 1) / survey.questions.length;
-  String? get currentQuestionError =>
-      showValidation ? currentQuestion.validate(answers[currentQuestion.id]) : null;
+  bool get isLastQuestion => currentQuestionIndex == _allQuestions.length - 1;
+  double get progress => _allQuestions.isEmpty ? 0 : (currentQuestionIndex + 1) / _allQuestions.length;
+
+  String? get currentOtherValue => answers[currentQuestion.otherAnswerKey] as String?;
+
+  String? get currentQuestionError => showValidation
+      ? currentQuestion.validate(answers[currentQuestion.id], otherValue: currentOtherValue)
+      : null;
 
   SurveyFillReady copyWith({
     Map<String, Object?>? answers,
@@ -87,6 +113,10 @@ class SurveyFillReady extends SurveyFillState {
 /// tracks the current question, validates, autosaves to SQLite on every
 /// change (debounced) so nothing is lost if the app is killed mid-fill, and
 /// hands off to the repository on submit.
+///
+/// GPS + app version (Módulo C metadata) are captured once, in the
+/// background, right after a *new* draft is created — never blocking the
+/// user from starting to answer while a location fix is still pending.
 class SurveyFillController extends StateNotifier<SurveyFillState> {
   SurveyFillController(this._ref, this._args) : super(const SurveyFillLoading()) {
     _init();
@@ -112,10 +142,35 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
         answers: existing?.answers ?? {},
         currentQuestionIndex: 0,
       );
-    } else {
-      final draft = await repo.saveDraft(survey: survey, answers: const {});
-      state = SurveyFillReady(survey: survey, localId: draft.localId, answers: const {}, currentQuestionIndex: 0);
+      return;
     }
+
+    final user = _ref.read(authControllerProvider);
+    final draft = await repo.saveDraft(
+      survey: survey,
+      answers: const {},
+      surveyorId: user?.id,
+      surveyorName: user?.name,
+    );
+    state = SurveyFillReady(survey: survey, localId: draft.localId, answers: const {}, currentQuestionIndex: 0);
+
+    unawaited(_captureStartMetadata(draft.localId));
+  }
+
+  /// Fire-and-forget GPS + app-version capture for a brand new response.
+  /// Uses a narrow, answers-untouched update (`attachMetadata`) instead of
+  /// round-tripping through [saveDraft], so it can never race with — and
+  /// clobber — an answer the user typed while the location fix was still
+  /// resolving.
+  Future<void> _captureStartMetadata(String localId) async {
+    final fix = await _ref.read(locationServiceProvider).getCurrentFix();
+    final version = await _ref.read(appVersionProvider.future);
+    await _ref.read(surveyRepositoryProvider).attachDraftMetadata(
+          localId: localId,
+          latitude: fix?.latitude,
+          longitude: fix?.longitude,
+          appVersion: version,
+        );
   }
 
   void setAnswer(String questionId, Object? value) {
@@ -149,7 +204,11 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
   bool goNext() {
     final current = state;
     if (current is! SurveyFillReady) return false;
-    if (current.currentQuestion.validate(current.answers[current.currentQuestion.id]) != null) {
+    final error = current.currentQuestion.validate(
+      current.answers[current.currentQuestion.id],
+      otherValue: current.currentOtherValue,
+    );
+    if (error != null) {
       state = current.copyWith(showValidation: true);
       return false;
     }
@@ -171,9 +230,11 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
     final current = state;
     if (current is! SurveyFillReady) return false;
 
-    for (var i = 0; i < current.survey.questions.length; i++) {
-      final question = current.survey.questions[i];
-      if (question.validate(current.answers[question.id]) != null) {
+    final questions = current.survey.allQuestions;
+    for (var i = 0; i < questions.length; i++) {
+      final question = questions[i];
+      final error = question.validate(current.answers[question.id], otherValue: current.answers[question.otherAnswerKey] as String?);
+      if (error != null) {
         state = current.copyWith(currentQuestionIndex: i, showValidation: true);
         return false;
       }

@@ -51,14 +51,32 @@ Flutter/Drift/Dio), `data/` (implementación con Drift/Dio), `presentation/`
    (sin señal), se sigue mostrando lo que ya había en SQLite.
 2. **Llenado:** cada respuesta se autoguarda en SQLite en cada cambio
    (`SurveyResponsesTable`, estado `draft`) — si matan la app a medio
-   llenado, no se pierde nada.
+   llenado, no se pierde nada. Al crear el borrador se capturan folio
+   (UUID), encuestador (de la sesión) y, en segundo plano sin bloquear el
+   llenado, GPS + versión de app (`core/location/location_service.dart`,
+   `core/utils/app_info.dart`) — con fallback silencioso si no hay
+   permiso/señal.
 3. **Envío:** al enviar, la respuesta pasa a `pending` (esto es 100% local,
    nunca falla) y se intenta un envío inmediato en segundo plano.
 4. **Sincronización:** un motor genérico (`core/sync/sync_engine.dart`)
    reintenta lo que siga `pending`/`failed` cuando: vuelve la conexión, cada
    2 minutos como respaldo, o el usuario pulsa "Sincronizar" en el Centro de
    sincronización. Nunca hay una tabla de "cola" separada — el estado de
-   cada respuesta *es* la cola.
+   cada respuesta *es* la cola. Además, `core/network/retry_interceptor.dart`
+   reintenta automáticamente (con backoff corto) errores transitorios de
+   una sola petición — complementario al motor de sync, que cubre
+   "offline por horas".
+
+### Estructura de una encuesta
+
+`Survey → List<SurveySection> → List<SurveyQuestion>`. El llenado sigue
+siendo una pregunta a la vez (mejor para el público objetivo), pero agrupa
+por sección en la barra de progreso ("Sección 2 de 3 · Tu experiencia").
+Tipos de pregunta soportados (`QuestionType`): texto corto, texto largo,
+opción única, opción múltiple (ambas con "Otra, especifica" opcional vía
+`allowOther`), escala 1–N, sí/no, fecha, y **matriz Likert** (tarjetas
+apiladas en teléfono, tabla real en tablet). Ver
+`lib/features/surveys/domain/survey.dart`.
 
 ## ⚠️ Antes de conectarlo a tu backend real
 
@@ -103,10 +121,22 @@ dart run build_runner build --delete-conflicting-outputs
 
 ## Qué falta / próximos pasos sugeridos
 
-- Conectar el contrato REST real (ver arriba).
+- Conectar el contrato REST real (ver arriba) — ahora incluye `folio`,
+  `surveyorId`/`surveyorName`, `location` y `appVersion` en el body de
+  `POST /surveys/{id}/responses`.
 - Pantalla "olvidé mi contraseña" si el backend la soporta.
-- Si alguna encuesta necesita foto o ubicación GPS, se agregaría como un
-  `QuestionType` más — el patrón ya está listo para extenderse.
+- Captura de foto por pregunta, si alguna encuesta la necesita — mismo
+  patrón que los demás `QuestionType`.
 - Ícono y nombre de la app todavía son los de plantilla de Flutter.
 - Tests unitarios del repositorio/sync engine (hoy solo hay un smoke test
   de arranque).
+
+## Nota sobre el stack sugerido (Isar/BLoC) vs. lo implementado
+
+El documento de requerimientos sugería Isar o sqflite, y BLoC/Cubit o
+Riverpod. Se mantuvo **Drift + Riverpod** (ya elegidos y probados en este
+proyecto) en vez de migrar a Isar/BLoC: cumplen exactamente el mismo rol
+(persistencia offline-first reactiva; estado/DI reactivo), migrar no
+aportaría nada funcional y sí arriesgaría reintroducir bugs en código ya
+verificado. Si hay una razón de equipo/estándar para forzar Isar o BLoC,
+es un cambio acotado (una capa cada uno) y se puede hacer después.

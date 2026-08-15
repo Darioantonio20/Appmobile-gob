@@ -56,7 +56,7 @@ class SurveyDetailScreen extends ConsumerWidget {
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    _InfoChip(icon: Icons.list_alt_rounded, label: '${survey.questions.length} preguntas'),
+                    _InfoChip(icon: Icons.list_alt_rounded, label: '${survey.questionCount} preguntas'),
                     _InfoChip(
                       icon: Icons.update_rounded,
                       label: 'Actualizada ${DateFormat('d/MM/y').format(survey.updatedAt)}',

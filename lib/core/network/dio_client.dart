@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../constants/app_constants.dart';
 import '../utils/app_logger.dart';
+import 'retry_interceptor.dart';
 
 /// Called by the auth interceptor to attach the current token, if any.
 /// Injected from outside (see `core/providers.dart`) so `core/` never
@@ -45,6 +46,8 @@ class DioClient {
         },
       ),
     );
+
+    dio.interceptors.add(RetryInterceptor(dio));
 
     if (kDebugMode) {
       final log = AppLogger.of('DioClient');

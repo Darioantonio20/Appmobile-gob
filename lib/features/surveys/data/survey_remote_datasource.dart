@@ -31,9 +31,15 @@ class SurveyRemoteDataSource {
     final result = await _dio.post<Map<String, dynamic>>(
       ApiEndpoints.submitResponse(response.surveyId),
       data: {
+        'folio': response.folio,
         'localId': response.localId,
         'answers': response.answers,
+        'surveyorId': response.surveyorId,
+        'surveyorName': response.surveyorName,
+        'startedAt': response.startedAt?.toIso8601String(),
         'submittedAt': (response.submittedAt ?? DateTime.now()).toIso8601String(),
+        'location': response.hasLocation ? {'lat': response.latitude, 'lng': response.longitude} : null,
+        'appVersion': response.appVersion,
       },
       options: Options(headers: {'Idempotency-Key': response.localId}),
     );

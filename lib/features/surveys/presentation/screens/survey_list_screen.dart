@@ -96,23 +96,37 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ResponsiveCenter(
-              child: GridView.builder(
+              child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: Responsive.gridColumns(context),
-                  mainAxisExtent: 168,
-                  crossAxisSpacing: AppSpacing.md,
-                  mainAxisSpacing: AppSpacing.md,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // A Wrap of fixed-width, natural-height cards — instead
+                    // of GridView's fixed cell height — so a card never
+                    // clips when its title/description wraps to a second
+                    // line (long survey names) or the user bumps up system
+                    // font size. Each card is free to be as tall as its own
+                    // content needs.
+                    final columns = Responsive.gridColumns(context);
+                    const spacing = AppSpacing.md;
+                    final cardWidth = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+                    return Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (final survey in surveys)
+                          SizedBox(
+                            width: cardWidth,
+                            child: SurveyCard(
+                              survey: survey,
+                              latestResponse: responsesBySurvey[survey.id],
+                              onTap: () => context.push(RoutePaths.surveyDetailPath(survey.id)),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
-                itemCount: surveys.length,
-                itemBuilder: (context, index) {
-                  final survey = surveys[index];
-                  return SurveyCard(
-                    survey: survey,
-                    latestResponse: responsesBySurvey[survey.id],
-                    onTap: () => context.push(RoutePaths.surveyDetailPath(survey.id)),
-                  );
-                },
               ),
             ),
           );

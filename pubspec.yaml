@@ -52,6 +52,10 @@ dependencies:
   # Connectivity detection for the sync engine
   connectivity_plus: ^6.1.1
 
+  # GPS metadata capture + app version for audit trail
+  geolocator: ^13.0.2
+  package_info_plus: ^8.1.2
+
   # Secure token storage
   flutter_secure_storage: ^9.2.4
 

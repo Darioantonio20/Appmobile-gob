@@ -38,7 +38,7 @@ class SurveyLocalDataSource {
                 id: s.id,
                 title: s.title,
                 description: Value(s.description),
-                questionsJson: jsonEncode(s.questions.map((q) => q.toJson()).toList()),
+                sectionsJson: jsonEncode(s.sections.map((sec) => sec.toJson()).toList()),
                 updatedAt: s.updatedAt,
                 fetchedAt: now,
               ))
@@ -47,13 +47,13 @@ class SurveyLocalDataSource {
   }
 
   Survey _surveyFromRow(SurveyRow row) {
-    final questionsRaw = jsonDecode(row.questionsJson) as List<dynamic>;
+    final sectionsRaw = jsonDecode(row.sectionsJson) as List<dynamic>;
     return Survey(
       id: row.id,
       title: row.title,
       description: row.description,
       updatedAt: row.updatedAt,
-      questions: questionsRaw.map((q) => SurveyQuestion.fromJson(q as Map<String, dynamic>)).toList(),
+      sections: sectionsRaw.map((s) => SurveySection.fromJson(s as Map<String, dynamic>)).toList(),
     );
   }
 
@@ -98,6 +98,12 @@ class SurveyLocalDataSource {
         syncedAt: Value(response.syncedAt),
         retryCount: Value(response.retryCount),
         lastError: Value(response.lastError),
+        surveyorId: Value(response.surveyorId),
+        surveyorName: Value(response.surveyorName),
+        startedAt: Value(response.startedAt),
+        latitude: Value(response.latitude),
+        longitude: Value(response.longitude),
+        appVersion: Value(response.appVersion),
       ),
     );
   }
@@ -120,6 +126,10 @@ class SurveyLocalDataSource {
     );
   }
 
+  Future<void> attachMetadata(String localId, {double? latitude, double? longitude, String? appVersion}) {
+    return _db.updateResponseMetadata(localId, latitude: latitude, longitude: longitude, appVersion: appVersion);
+  }
+
   Future<void> deleteResponse(String localId) => _db.deleteResponse(localId);
 
   SurveyResponse _responseFromRow(SurveyResponseRow row) {
@@ -136,6 +146,12 @@ class SurveyLocalDataSource {
       syncedAt: row.syncedAt,
       retryCount: row.retryCount,
       lastError: row.lastError,
+      surveyorId: row.surveyorId,
+      surveyorName: row.surveyorName,
+      startedAt: row.startedAt,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      appVersion: row.appVersion,
     );
   }
 }

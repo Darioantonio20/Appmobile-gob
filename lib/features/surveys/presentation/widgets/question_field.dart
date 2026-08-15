@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../domain/survey.dart';
 
 /// Renders the right input control for a [SurveyQuestion], dispatching on
@@ -18,20 +19,35 @@ class QuestionField extends StatelessWidget {
     required this.question,
     required this.value,
     required this.onChanged,
+    this.otherValue,
+    this.onOtherChanged,
     this.errorText,
   });
 
   final SurveyQuestion question;
   final Object? value;
   final ValueChanged<Object?> onChanged;
+
+  /// Free-text value for the "Otra (especifica)" choice — only relevant
+  /// when [SurveyQuestion.allowOther] is set.
+  final String? otherValue;
+  final ValueChanged<String>? onOtherChanged;
+
   final String? errorText;
+
+  bool get _otherSelected {
+    if (!question.allowOther) return false;
+    return value == SurveyQuestion.otherOptionValue ||
+        (value is Iterable && (value as Iterable).contains(SurveyQuestion.otherOptionValue));
+  }
 
   @override
   Widget build(BuildContext context) {
     final Widget field = switch (question.type) {
       QuestionType.shortText => _TextAnswerField(value: value as String?, onChanged: onChanged, maxLines: 1),
       QuestionType.longText => _TextAnswerField(value: value as String?, onChanged: onChanged, maxLines: 6),
-      QuestionType.singleChoice => _SingleChoiceField(question: question, value: value as String?, onChanged: onChanged),
+      QuestionType.singleChoice =>
+        _SingleChoiceField(question: question, value: value as String?, onChanged: onChanged),
       QuestionType.multipleChoice => _MultipleChoiceField(
           question: question,
           value: (value as List?)?.cast<String>() ?? const [],
@@ -40,32 +56,58 @@ class QuestionField extends StatelessWidget {
       QuestionType.scale => _ScaleField(question: question, value: value as num?, onChanged: onChanged),
       QuestionType.yesNo => _YesNoField(value: value as bool?, onChanged: onChanged),
       QuestionType.date => _DateField(value: value as String?, onChanged: onChanged),
+      QuestionType.likertMatrix => _MatrixField(
+          question: question,
+          value: (value as Map?)?.cast<String, String>() ?? const {},
+          onChanged: onChanged,
+        ),
     };
 
-    if (errorText == null) return field;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         field,
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Icon(Icons.error_outline, size: 18, color: Theme.of(context).colorScheme.error),
-            const SizedBox(width: 6),
-            Text(errorText!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          ],
-        ),
+        if (_otherSelected) ...[
+          const SizedBox(height: AppSpacing.sm),
+          // Reuses the same stateful text field as short/long-text answers
+          // — a plain TextField rebuilt with `TextEditingController(text:
+          // otherValue)` on every keystroke would fight its own cursor.
+          _TextAnswerField(
+            value: otherValue,
+            maxLines: 1,
+            hint: 'Especifica tu respuesta',
+            onChanged: (v) => onOtherChanged?.call(v as String? ?? ''),
+          ),
+        ],
+        if (errorText != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Icon(Icons.error_outline, size: 18, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(errorText!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
 }
 
 class _TextAnswerField extends StatefulWidget {
-  const _TextAnswerField({required this.value, required this.onChanged, required this.maxLines});
+  const _TextAnswerField({
+    required this.value,
+    required this.onChanged,
+    required this.maxLines,
+    this.hint = 'Escribe tu respuesta aquí',
+  });
 
   final String? value;
   final ValueChanged<Object?> onChanged;
   final int maxLines;
+  final String hint;
 
   @override
   State<_TextAnswerField> createState() => _TextAnswerFieldState();
@@ -99,10 +141,18 @@ class _TextAnswerFieldState extends State<_TextAnswerField> {
       minLines: widget.maxLines > 1 ? 4 : 1,
       style: Theme.of(context).textTheme.bodyLarge,
       textCapitalization: TextCapitalization.sentences,
-      decoration: const InputDecoration(hintText: 'Escribe tu respuesta aquí'),
+      decoration: InputDecoration(hintText: widget.hint),
       onChanged: (text) => widget.onChanged(text),
     );
   }
+}
+
+/// Choices for single/multiple choice fields, with an "Otra (especifica)"
+/// tile automatically appended when [SurveyQuestion.allowOther] is set —
+/// backends don't need to remember to add it themselves.
+List<QuestionOption> _optionsWithOther(SurveyQuestion question) {
+  if (!question.allowOther) return question.options;
+  return [...question.options, const QuestionOption(value: SurveyQuestion.otherOptionValue, label: 'Otra (especifica)')];
 }
 
 class _SingleChoiceField extends StatelessWidget {
@@ -116,7 +166,7 @@ class _SingleChoiceField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final option in question.options)
+        for (final option in _optionsWithOther(question))
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _ChoiceTile(
@@ -143,7 +193,7 @@ class _MultipleChoiceField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final option in question.options)
+        for (final option in _optionsWithOther(question))
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _ChoiceTile(
@@ -359,6 +409,104 @@ class _DateField extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(label, style: theme.textTheme.bodyLarge),
       ),
+    );
+  }
+}
+
+/// Likert matrix: [SurveyQuestion.matrixRows] answered against the shared
+/// [SurveyQuestion.options] scale. Stacked "row card + choice chips" on
+/// phones; an actual table (rows × columns) on tablets/desktop, per the
+/// "optimizado para tabletas" requirement.
+class _MatrixField extends StatelessWidget {
+  const _MatrixField({required this.question, required this.value, required this.onChanged});
+
+  final SurveyQuestion question;
+  final Map<String, String> value;
+  final ValueChanged<Object?> onChanged;
+
+  void _select(String rowId, String optionValue) {
+    onChanged({...value, rowId: optionValue});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Responsive.isTabletOrWider(context) ? _buildTable(context) : _buildStackedCards(context);
+  }
+
+  Widget _buildStackedCards(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        for (final row in question.matrixRows)
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(row.text, style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final option in question.options)
+                      ChoiceChip(
+                        label: Text(option.label),
+                        selected: value[row.id] == option.value,
+                        onSelected: (_) => _select(row.id, option.value),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTable(BuildContext context) {
+    final theme = Theme.of(context);
+    return Table(
+      border: TableBorder.all(color: theme.colorScheme.outlineVariant, borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
+      columnWidths: {0: const FlexColumnWidth(2), for (var i = 0; i < question.options.length; i++) i + 1: const FlexColumnWidth(1)},
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerHighest),
+          children: [
+            const Padding(padding: EdgeInsets.all(AppSpacing.sm), child: SizedBox()),
+            for (final option in question.options)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                child: Text(option.label, style: theme.textTheme.labelMedium, textAlign: TextAlign.center),
+              ),
+          ],
+        ),
+        for (final row in question.matrixRows)
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                child: Text(row.text, style: theme.textTheme.bodyMedium),
+              ),
+              for (final option in question.options)
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  child: Center(
+                    child: Radio<String>(
+                      value: option.value,
+                      groupValue: value[row.id],
+                      onChanged: (v) => _select(row.id, v!),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
     );
   }
 }

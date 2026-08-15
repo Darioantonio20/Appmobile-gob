@@ -55,13 +55,19 @@ class _FillBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final question = state.currentQuestion;
+    final (section, sectionNumber) = state.currentSectionInfo;
+    final showSectionLabel = state.survey.sections.length > 1;
 
     return Column(
       children: [
         SurveyProgressBar(
           progress: state.progress,
           current: state.currentQuestionIndex + 1,
-          total: state.survey.questions.length,
+          total: state.survey.allQuestions.length,
+          sectionLabel: showSectionLabel
+              ? 'Sección $sectionNumber de ${state.survey.sections.length}'
+                  '${section.title.isNotEmpty ? ' · ${section.title}' : ''}'
+              : null,
         ),
         Expanded(
           child: SingleChildScrollView(
@@ -105,8 +111,10 @@ class _FillBody extends StatelessWidget {
                     QuestionField(
                       question: question,
                       value: state.answers[question.id],
+                      otherValue: state.currentOtherValue,
                       errorText: state.currentQuestionError,
                       onChanged: (value) => controller.setAnswer(question.id, value),
+                      onOtherChanged: (text) => controller.setAnswer(question.otherAnswerKey, text),
                     ),
                   ],
                 ),

@@ -62,7 +62,7 @@ class SurveyCard extends StatelessWidget {
                   Icon(Icons.list_alt_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
                   Text(
-                    '${survey.questions.length} preguntas',
+                    '${survey.questionCount} preguntas',
                     style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                   const Spacer(),
@@ -74,7 +74,7 @@ class SurveyCard extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                   child: LinearProgressIndicator(
-                    value: response.progressFor(survey.questions).clamp(0, 1),
+                    value: response.progressFor(survey.allQuestions).clamp(0, 1),
                     minHeight: 6,
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   ),

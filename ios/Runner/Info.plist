@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Usamos tu ubicación para registrar dónde se levantó cada encuesta. Puedes seguir usando la app sin darla.</string>
 </dict>
 </plist>

@@ -32,10 +32,20 @@ abstract class SurveyRepository {
   /// Creates (when [localId] is null) or updates a local draft. Purely
   /// local — safe to call as often as needed (e.g. on every answer change)
   /// regardless of connectivity.
+  ///
+  /// The audit fields ([surveyorId] through [appVersion]) are only ever
+  /// meant to be captured once, when the response is first created — pass
+  /// them on that first call; every later autosave call omits them and the
+  /// previously-stored values are carried forward untouched.
   Future<SurveyResponse> saveDraft({
     required Survey survey,
     String? localId,
     required Map<String, Object?> answers,
+    String? surveyorId,
+    String? surveyorName,
+    double? latitude,
+    double? longitude,
+    String? appVersion,
   });
 
   /// Marks a draft as ready to send (`pending`) and kicks off a best-effort
@@ -43,6 +53,16 @@ abstract class SurveyRepository {
   /// callers don't need to wait for (or handle failure of) the network part,
   /// the response is durably queued either way.
   Future<void> submit(String localId);
+
+  /// Narrow, answers-untouched update for the audit metadata (GPS, app
+  /// version) that's captured asynchronously right after a response is
+  /// created — see `SurveyFillController._captureStartMetadata`.
+  Future<void> attachDraftMetadata({
+    required String localId,
+    double? latitude,
+    double? longitude,
+    String? appVersion,
+  });
 
   Future<void> discardDraft(String localId);
 
