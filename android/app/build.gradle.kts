@@ -8,7 +8,11 @@ plugins {
 android {
     namespace = "com.darioantonio20.appmobile_gob"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pinned above flutter.ndkVersion because connectivity_plus,
+    // flutter_secure_storage, path_provider_android and sqlite3_flutter_libs
+    // all require 27.0.12077973+; the NDK is backward-compatible so this is
+    // safe for every other plugin too.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
