@@ -6,6 +6,7 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/gradient_app_bar.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../survey_fill_controller.dart';
 import '../widgets/question_field.dart';
@@ -30,7 +31,7 @@ class SurveyFillScreen extends ConsumerWidget {
     });
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: GradientAppBar(
         title: Text(state is SurveyFillReady ? state.survey.title : 'Encuesta'),
       ),
       body: switch (state) {

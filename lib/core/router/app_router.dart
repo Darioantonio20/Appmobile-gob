@@ -89,32 +89,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Gentle cross-fade — used for top-level destinations (tabs, login).
+/// "Shared axis"-style cross-fade + gentle scale-in — used for top-level
+/// destinations (tabs, login). Fade alone reads as barely-there at a
+/// glance; pairing it with a small scale (0.96 → 1.0, Material's own shared
+/// axis pattern) is what makes the transition actually register as motion
+/// rather than a flicker.
 CustomTransitionPage<void> _fadeThrough(GoRouterState state, Widget child) {
   return CustomTransitionPage(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 320),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return FadeTransition(opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut), child: child);
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+          child: child,
+        ),
+      );
     },
   );
 }
 
 /// Slide-up + fade — used for screens pushed on top of the shell (detail,
 /// fill, success), signaling "you're going deeper" rather than "switching
-/// section".
+/// section". The slide distance is deliberately more pronounced than a
+/// subtle "polish" nudge so it reads clearly as "this came from below".
 CustomTransitionPage<void> _slideUp(GoRouterState state, Widget child) {
   return CustomTransitionPage(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 260),
+    transitionDuration: const Duration(milliseconds: 340),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
       return FadeTransition(
         opacity: curved,
         child: SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(curved),
+          position: Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero).animate(curved),
           child: child,
         ),
       );

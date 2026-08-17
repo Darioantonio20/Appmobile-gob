@@ -75,9 +75,20 @@ duration/curve for consistency rather than picking new ones per widget.
 
 Route-level transitions already exist in `lib/core/router/app_router.dart` — reuse them,
 don't invent a third style:
-- `_fadeThrough` (220ms cross-fade): top-level destinations (tabs, login).
-- `_slideUp` (260ms slide+fade, `easeOutCubic`): screens pushed on top of the shell
-  (detail, fill, success, profile) — signals "going deeper" vs. "switching section."
+- `_fadeThrough` (320ms, fade + scale 0.96→1, `easeOutCubic`): top-level destinations
+  (tabs, login). Fade alone read as barely-there; pairing it with a small scale (Material's
+  own "shared axis" pattern) is what makes it register as motion instead of a flicker.
+- `_slideUp` (340ms slide+fade, `easeOutCubic`, offset 0→0.12 of screen height): screens
+  pushed on top of the shell (detail, fill, success, profile) — signals "going deeper" vs.
+  "switching section."
+
+Also reuse `StaggeredFadeSlideIn` (`lib/core/widgets/staggered_fade_in.dart`) for revealing
+a screen's *content* once it's on screen — header/title/form/list-item entrances (login,
+profile, survey detail, sync center, the survey grid) all use it with an `index` per
+section/item so things cascade in instead of appearing all at once. And reuse
+`GradientAppBar` (`lib/core/widgets/gradient_app_bar.dart`, primary→tertiary) instead of a
+plain `AppBar` on top-level screens — it's this app's single most visible "does this look
+designed" signal since it's on screen everywhere, so don't reintroduce a plain one.
 
 ## MediaQuery / text scaling — don't hand-roll this
 

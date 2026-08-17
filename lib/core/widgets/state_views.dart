@@ -72,7 +72,7 @@ class EmptyStateView extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               SizedBox(
                 width: 240,
-                child: AppButton(label: actionLabel!, onPressed: onAction, icon: Icons.refresh),
+                child: AppButton(label: actionLabel!, onPressed: onAction, icon: Icons.refresh_rounded),
               ),
             ],
           ],
@@ -95,8 +95,8 @@ class ErrorStateView extends StatelessWidget {
     final theme = Theme.of(context);
     final icon = switch (failure.type) {
       FailureType.network => Icons.wifi_off_rounded,
-      FailureType.unauthorized => Icons.lock_outline,
-      _ => Icons.error_outline,
+      FailureType.unauthorized => Icons.lock_outline_rounded,
+      _ => Icons.error_outline_rounded,
     };
     return Center(
       child: Padding(
@@ -117,7 +117,7 @@ class ErrorStateView extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               SizedBox(
                 width: 240,
-                child: AppButton(label: 'Reintentar', onPressed: onRetry, icon: Icons.refresh),
+                child: AppButton(label: 'Reintentar', onPressed: onRetry, icon: Icons.refresh_rounded),
               ),
             ],
           ],

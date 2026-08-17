@@ -7,6 +7,8 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/result.dart';
+import '../../../../core/widgets/gradient_app_bar.dart';
+import '../../../../core/widgets/staggered_fade_in.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../auth/presentation/auth_controller.dart';
 import '../../data/survey_repository_impl.dart';
@@ -53,7 +55,7 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
     final responsesAsync = ref.watch(allResponsesProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: GradientAppBar(
         title: Text(user == null ? 'Encuestas' : 'Hola, ${user.name.split(' ').first}'),
         actions: [
           IconButton(
@@ -114,13 +116,16 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
                       spacing: spacing,
                       runSpacing: spacing,
                       children: [
-                        for (final survey in surveys)
+                        for (final (index, survey) in surveys.indexed)
                           SizedBox(
                             width: cardWidth,
-                            child: SurveyCard(
-                              survey: survey,
-                              latestResponse: responsesBySurvey[survey.id],
-                              onTap: () => context.push(RoutePaths.surveyDetailPath(survey.id)),
+                            child: StaggeredFadeSlideIn(
+                              index: index,
+                              child: SurveyCard(
+                                survey: survey,
+                                latestResponse: responsesBySurvey[survey.id],
+                                onTap: () => context.push(RoutePaths.surveyDetailPath(survey.id)),
+                              ),
                             ),
                           ),
                       ],

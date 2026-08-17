@@ -5,6 +5,7 @@ import '../../../core/sync/sync_status.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/staggered_fade_in.dart';
 import '../../surveys/presentation/survey_providers.dart';
 import 'auth_controller.dart';
 
@@ -16,6 +17,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final user = ref.watch(authControllerProvider);
     final allResponses = ref.watch(allResponsesProvider).valueOrNull ?? const [];
     final syncedCount = allResponses.where((r) => r.status == SyncStatus.synced).length;
@@ -25,59 +27,106 @@ class ProfileScreen extends ConsumerWidget {
       body: ResponsiveCenter(
         child: ListView(
           children: [
-            const SizedBox(height: AppSpacing.lg),
-            Center(
-              child: CircleAvatar(
-                radius: 44,
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Text(
-                  _initials(user?.name),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
+            const SizedBox(height: AppSpacing.sm),
+            StaggeredFadeSlideIn(
+              index: 0,
+              beginOffset: const Offset(0, 0.1),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              user?.name ?? 'Encuestador',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              user?.email ?? '',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.md),
                 child: Column(
                   children: [
-                    Icon(Icons.cloud_done_rounded, color: Theme.of(context).colorScheme.primary, size: 32),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text('$syncedCount', style: Theme.of(context).textTheme.headlineMedium),
+                    // The extra ring container (surface-colored, slightly bigger
+                    // than the avatar) is what makes the avatar read as "sitting
+                    // on" the gradient instead of blending into it.
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.surface),
+                      child: CircleAvatar(
+                        radius: 44,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        child: Text(
+                          _initials(user?.name),
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      user?.name ?? 'Encuestador',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.onPrimary),
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      syncedCount == 1 ? 'Encuesta enviada' : 'Encuestas enviadas',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      user?.email ?? '',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onPrimary.withValues(alpha: 0.85)),
                     ),
                   ],
                 ),
               ),
             ),
+            const SizedBox(height: AppSpacing.xl),
+            StaggeredFadeSlideIn(
+              index: 1,
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.md),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: theme.colorScheme.primaryContainer,
+                        ),
+                        child: Icon(Icons.cloud_done_rounded, color: theme.colorScheme.onPrimaryContainer, size: 28),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TweenAnimationBuilder<int>(
+                            tween: IntTween(begin: 0, end: syncedCount),
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeOut,
+                            builder: (context, value, _) =>
+                                Text('$value', style: theme.textTheme.headlineMedium),
+                          ),
+                          Text(
+                            syncedCount == 1 ? 'Encuesta enviada' : 'Encuestas enviadas',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: AppSpacing.xxl),
-            AppButton(
-              label: 'Cerrar sesión',
-              icon: Icons.logout_rounded,
-              variant: AppButtonVariant.secondary,
-              onPressed: () => _confirmLogout(context, ref),
+            StaggeredFadeSlideIn(
+              index: 2,
+              child: AppButton(
+                label: 'Cerrar sesión',
+                icon: Icons.logout_rounded,
+                variant: AppButtonVariant.secondary,
+                onPressed: () => _confirmLogout(context, ref),
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
           ],

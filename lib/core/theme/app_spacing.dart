@@ -13,6 +13,7 @@ class AppSpacing {
   static const double radiusSm = 8;
   static const double radiusMd = 14;
   static const double radiusLg = 20;
+  static const double radiusXl = 24;
 
   /// Minimum touch-target side length (Material accessibility guidance is
   /// 48; we go slightly bigger given the target audience).

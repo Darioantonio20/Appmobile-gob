@@ -9,6 +9,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/gradient_app_bar.dart';
+import '../../../../core/widgets/staggered_fade_in.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../../core/widgets/sync_status_badge.dart';
 import '../../data/survey_repository_impl.dart';
@@ -26,7 +28,7 @@ class SurveyDetailScreen extends ConsumerWidget {
     final responsesAsync = ref.watch(responsesForSurveyProvider(surveyId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle de la encuesta')),
+      appBar: const GradientAppBar(title: Text('Detalle de la encuesta')),
       body: surveyAsync.when(
         loading: () => const LoadingView(),
         error: (error, _) => ErrorStateView(failure: AppFailure.unknown(null, error)),
@@ -46,31 +48,42 @@ class SurveyDetailScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 120),
               children: [
-                Text(survey.title, style: theme.textTheme.headlineSmall),
-                if (survey.description != null && survey.description!.trim().isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(survey.description!, style: theme.textTheme.bodyLarge),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    _InfoChip(icon: Icons.list_alt_rounded, label: '${survey.questionCount} preguntas'),
-                    _InfoChip(
-                      icon: Icons.update_rounded,
-                      label: 'Actualizada ${DateFormat('d/MM/y').format(survey.updatedAt)}',
-                    ),
-                  ],
+                StaggeredFadeSlideIn(
+                  index: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(survey.title, style: theme.textTheme.headlineSmall),
+                      if (survey.description != null && survey.description!.trim().isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(survey.description!, style: theme.textTheme.bodyLarge),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          _InfoChip(icon: Icons.list_alt_rounded, label: '${survey.questionCount} preguntas'),
+                          _InfoChip(
+                            icon: Icons.update_rounded,
+                            label: 'Actualizada ${DateFormat('d/MM/y').format(survey.updatedAt)}',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 if (responses.isNotEmpty) ...[
                   Text('Mis respuestas', style: theme.textTheme.titleMedium),
                   const SizedBox(height: AppSpacing.sm),
-                  for (final response in responses)
+                  for (final (index, response) in responses.indexed)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _ResponseTile(response: response, surveyId: surveyId),
+                      child: StaggeredFadeSlideIn(
+                        index: index + 1,
+                        child: _ResponseTile(response: response, surveyId: surveyId),
+                      ),
                     ),
                   const SizedBox(height: AppSpacing.md),
                 ],

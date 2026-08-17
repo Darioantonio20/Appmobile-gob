@@ -8,6 +8,8 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/result.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/sync_status_badge.dart';
 import '../../surveys/data/survey_repository_impl.dart';
@@ -26,7 +28,7 @@ class SyncCenterScreen extends ConsumerWidget {
     final engineState = ref.watch(syncEngineProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sincronización')),
+      appBar: const GradientAppBar(title: Text('Sincronización')),
       body: allAsync.when(
         loading: () => const LoadingView(),
         error: (error, _) => ErrorStateView(failure: AppFailure.unknown(null, error)),
@@ -42,27 +44,33 @@ class SyncCenterScreen extends ConsumerWidget {
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  _StatusHeader(engineState: engineState, pendingCount: pending.length),
+                  StaggeredFadeSlideIn(
+                    index: 0,
+                    child: _StatusHeader(engineState: engineState, pendingCount: pending.length),
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   if (pending.isEmpty)
-                    const _AllSyncedCard()
+                    StaggeredFadeSlideIn(index: 1, child: const _AllSyncedCard())
                   else ...[
                     Text('Pendientes (${pending.length})', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
-                    for (final response in pending)
+                    for (final (index, response) in pending.indexed)
                       Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _ResponseRow(response: response),
+                        child: StaggeredFadeSlideIn(index: index + 1, child: _ResponseRow(response: response)),
                       ),
                   ],
                   if (synced.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Text('Enviadas (${synced.length})', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
-                    for (final response in synced)
+                    for (final (index, response) in synced.indexed)
                       Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _ResponseRow(response: response),
+                        child: StaggeredFadeSlideIn(
+                          index: index + pending.length + 1,
+                          child: _ResponseRow(response: response),
+                        ),
                       ),
                   ],
                   const SizedBox(height: AppSpacing.xl),
