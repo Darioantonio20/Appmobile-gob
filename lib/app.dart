@@ -52,10 +52,18 @@ class _AppmobileGobAppState extends ConsumerState<AppmobileGobApp> {
         // system's: this app's base sizes are already tuned for older
         // readers, so we don't want a smaller-than-default OS preference
         // undercutting that baseline.
-        final mediaQuery = MediaQuery.of(context);
-        final clampedScaler = mediaQuery.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 1.4);
-        return MediaQuery(
-          data: mediaQuery.copyWith(textScaler: clampedScaler),
+        //
+        // Uses the framework's own `MediaQuery.withClampedTextScaling`
+        // instead of manually reading/copying MediaQuery: resolving the
+        // clamp fresh per-subtree (via its internal Builder) is what makes
+        // this safe for dialogs/pickers that open their own nested
+        // MediaQuery scope (e.g. showDatePicker) — a hand-rolled
+        // `mediaQuery.textScaler.clamp(...)` computed once here crashed
+        // with "maxScale > minScale" inside the date picker on a device
+        // with a large OS text-scale setting.
+        return MediaQuery.withClampedTextScaling(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.4,
           child: child!,
         );
       },

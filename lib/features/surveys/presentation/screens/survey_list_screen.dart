@@ -57,9 +57,9 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
         title: Text(user == null ? 'Encuestas' : 'Hola, ${user.name.split(' ').first}'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Cerrar sesión',
-            onPressed: () => _confirmLogout(context, ref),
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Mi perfil',
+            onPressed: () => context.push(RoutePaths.profile),
           ),
         ],
       ),
@@ -133,22 +133,5 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
         },
       ),
     );
-  }
-
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Seguro que quieres cerrar tu sesión?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cerrar sesión')),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(authControllerProvider.notifier).logout();
-    }
   }
 }

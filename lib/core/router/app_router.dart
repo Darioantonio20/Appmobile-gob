@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/profile_screen.dart';
 import '../../features/home/presentation/main_shell.dart';
 import '../../features/surveys/presentation/screens/survey_detail_screen.dart';
 import '../../features/surveys/presentation/screens/survey_fill_screen.dart';
@@ -79,6 +80,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final surveyId = state.pathParameters['surveyId']!;
           return _fadeThrough(state, SurveySuccessScreen(surveyId: surveyId));
         },
+      ),
+      GoRoute(
+        path: RoutePaths.profile,
+        pageBuilder: (context, state) => _slideUp(state, const ProfileScreen()),
       ),
     ],
   );

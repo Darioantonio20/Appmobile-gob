@@ -15,14 +15,15 @@ class SyncStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spinning = status == SyncStatus.syncing;
+    final color = status.colorFor(Theme.of(context).brightness);
     return Semantics(
       label: 'Estado: ${status.label}',
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: compact ? AppSpacing.sm : AppSpacing.md, vertical: 6),
         decoration: BoxDecoration(
-          color: status.color.withValues(alpha: 0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-          border: Border.all(color: status.color.withValues(alpha: 0.4)),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -31,14 +32,14 @@ class SyncStatusBadge extends StatelessWidget {
               SizedBox(
                 width: 14,
                 height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: status.color),
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
               )
             else
-              Icon(status.icon, size: 16, color: status.color),
+              Icon(status.icon, size: 16, color: color),
             const SizedBox(width: 6),
             Text(
               status.label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: status.color),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
             ),
           ],
         ),

@@ -30,13 +30,19 @@ enum SyncStatus {
         SyncStatus.failed => 'No se pudo enviar',
       };
 
-  Color get color => switch (this) {
-        SyncStatus.draft => AppColors.info,
-        SyncStatus.pending => AppColors.syncPending,
-        SyncStatus.syncing => AppColors.syncInProgress,
-        SyncStatus.synced => AppColors.syncSynced,
-        SyncStatus.failed => AppColors.syncFailed,
-      };
+  /// Brightness-aware: the light-mode tones read as low-contrast/muddy text
+  /// on a dark background, so dark mode gets brighter variants of the same
+  /// hues instead (see [AppColors]).
+  Color colorFor(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return switch (this) {
+      SyncStatus.draft => isDark ? AppColors.infoDark : AppColors.info,
+      SyncStatus.pending => isDark ? AppColors.syncPendingDark : AppColors.syncPending,
+      SyncStatus.syncing => isDark ? AppColors.syncInProgressDark : AppColors.syncInProgress,
+      SyncStatus.synced => isDark ? AppColors.syncSyncedDark : AppColors.syncSynced,
+      SyncStatus.failed => isDark ? AppColors.syncFailedDark : AppColors.syncFailed,
+    };
+  }
 
   IconData get icon => switch (this) {
         SyncStatus.draft => Icons.edit_note_rounded,

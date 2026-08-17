@@ -239,33 +239,101 @@ class _ChoiceTile extends StatelessWidget {
     final bgColor = selected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55) : theme.colorScheme.surface;
 
     return Material(
-      color: bgColor,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
           constraints: const BoxConstraints(minHeight: AppSpacing.buttonHeight),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
           decoration: BoxDecoration(
+            color: bgColor,
             borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
             border: Border.all(color: borderColor, width: selected ? 2 : 1.5),
           ),
           child: Row(
             children: [
-              Icon(
-                selected ? leadingSelected : leading,
-                color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-                size: 26,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: Icon(
+                  selected ? leadingSelected : leading,
+                  key: ValueKey(selected),
+                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.bodyLarge?.copyWith(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 180),
+                  style: theme.textTheme.bodyLarge!.copyWith(
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   ),
+                  child: Text(label),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact selectable chip used inside the Likert matrix. Deliberately not
+/// [ChoiceChip]: that widget's default label color doesn't get an explicit
+/// override in this app's [ChipThemeData], which made it nearly unreadable
+/// against this card's `surfaceContainerLow` background. Uses the same
+/// border+background convention as [_ChoiceTile] (proven readable there)
+/// instead, animated so selecting an option transitions smoothly rather
+/// than snapping.
+class _MatrixOptionChip extends StatelessWidget {
+  const _MatrixOptionChip({required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final borderColor = selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
+    final bgColor = selected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55) : theme.colorScheme.surface;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          constraints: const BoxConstraints(minHeight: 40),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            border: Border.all(color: borderColor, width: selected ? 2 : 1.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: selected
+                    ? Icon(Icons.check_rounded, key: const ValueKey('check'), size: 18, color: theme.colorScheme.primary)
+                    : const SizedBox(key: ValueKey('nocheck'), width: 0, height: 18),
+              ),
+              if (selected) const SizedBox(width: 4),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 180),
+                style: theme.textTheme.labelMedium!.copyWith(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+                child: Text(label),
               ),
             ],
           ),
@@ -323,21 +391,28 @@ class _ScaleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: selected ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest,
+      color: Colors.transparent,
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        child: SizedBox(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
           width: AppSpacing.minTouchTarget,
           height: AppSpacing.minTouchTarget,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: selected ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest,
+          ),
           child: Center(
-            child: Text(
-              '$number',
-              style: theme.textTheme.titleMedium?.copyWith(
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 180),
+              style: theme.textTheme.titleMedium!.copyWith(
                 color: selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
+              child: Text('$number'),
             ),
           ),
         ),
@@ -455,10 +530,10 @@ class _MatrixField extends StatelessWidget {
                   runSpacing: AppSpacing.xs,
                   children: [
                     for (final option in question.options)
-                      ChoiceChip(
-                        label: Text(option.label),
+                      _MatrixOptionChip(
+                        label: option.label,
                         selected: value[row.id] == option.value,
-                        onSelected: (_) => _select(row.id, option.value),
+                        onTap: () => _select(row.id, option.value),
                       ),
                   ],
                 ),

@@ -61,11 +61,21 @@ class SurveyCard extends StatelessWidget {
                 children: [
                   Icon(Icons.list_alt_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
-                  Text(
-                    '${survey.questionCount} preguntas',
-                    style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  // Expanded + ellipsis (was Spacer() + unbounded Text): on a narrow
+                  // card (2-column phone grid) a long status label ("No se pudo
+                  // enviar") plus this text didn't fit and overflowed. Expanded still
+                  // pushes the badge to the right when there's room, but lets this
+                  // text give way first — it's less important than the status badge —
+                  // instead of the Row breaking.
+                  Expanded(
+                    child: Text(
+                      '${survey.questionCount} preguntas',
+                      style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: AppSpacing.sm),
                   if (response != null) SyncStatusBadge(status: response.status, compact: true),
                 ],
               ),

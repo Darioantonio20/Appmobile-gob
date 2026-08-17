@@ -6,6 +6,7 @@ class RoutePaths {
   static const String login = '/login';
   static const String surveys = '/';
   static const String syncCenter = '/sync';
+  static const String profile = '/profile';
 
   static const String surveyDetail = '/surveys/:surveyId';
   static String surveyDetailPath(String surveyId) => '/surveys/$surveyId';
