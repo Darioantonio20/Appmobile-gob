@@ -41,7 +41,7 @@ class SurveyFillReady extends SurveyFillState {
     required this.survey,
     required this.localId,
     required this.answers,
-    required this.currentQuestionIndex,
+    required this.currentSectionIndex,
     this.isSaving = false,
     this.isSubmitting = false,
     this.showValidation = false,
@@ -52,45 +52,39 @@ class SurveyFillReady extends SurveyFillState {
   final String localId;
   final Map<String, Object?> answers;
 
-  /// Flat index into [Survey.allQuestions] — sections are a display/grouping
-  /// concept layered on top of one linear question sequence, which keeps
-  /// the "one question at a time" accessible flow from getting more complex
-  /// than it needs to be.
-  final int currentQuestionIndex;
+  /// One "page" is a whole [SurveySection] now, scrolled through together —
+  /// not one question at a time. A section is the natural unit to chunk on:
+  /// it's already how surveys are authored/grouped, so this reuses that
+  /// boundary instead of inventing an arbitrary "N questions per page" that
+  /// would ignore the survey's own structure.
+  final int currentSectionIndex;
   final bool isSaving;
   final bool isSubmitting;
+
+  /// Whether validation errors should currently be shown. Applies to every
+  /// question in [currentSection] at once (see [errorFor]) — with several
+  /// questions on screen together, "the current question" no longer singles
+  /// out just one to validate.
   final bool showValidation;
   final bool justSubmitted;
 
-  List<SurveyQuestion> get _allQuestions => survey.allQuestions;
+  SurveySection get currentSection => survey.sections[currentSectionIndex];
+  List<SurveyQuestion> get currentQuestions => currentSection.questions;
+  int get sectionNumber => currentSectionIndex + 1;
+  int get totalSections => survey.sections.length;
 
-  SurveyQuestion get currentQuestion => _allQuestions[currentQuestionIndex];
+  bool get isFirstSection => currentSectionIndex == 0;
+  bool get isLastSection => currentSectionIndex == totalSections - 1;
+  double get progress => totalSections == 0 ? 0 : (currentSectionIndex + 1) / totalSections;
 
-  /// The section [currentQuestion] belongs to, and that section's 1-based
-  /// position — feeds the "Sección X de Y" label.
-  (SurveySection section, int number) get currentSectionInfo {
-    var cursor = 0;
-    for (var i = 0; i < survey.sections.length; i++) {
-      final section = survey.sections[i];
-      if (currentQuestionIndex < cursor + section.questions.length) return (section, i + 1);
-      cursor += section.questions.length;
-    }
-    return (survey.sections.last, survey.sections.length);
-  }
+  String? otherValueFor(SurveyQuestion question) => answers[question.otherAnswerKey] as String?;
 
-  bool get isFirstQuestion => currentQuestionIndex == 0;
-  bool get isLastQuestion => currentQuestionIndex == _allQuestions.length - 1;
-  double get progress => _allQuestions.isEmpty ? 0 : (currentQuestionIndex + 1) / _allQuestions.length;
-
-  String? get currentOtherValue => answers[currentQuestion.otherAnswerKey] as String?;
-
-  String? get currentQuestionError => showValidation
-      ? currentQuestion.validate(answers[currentQuestion.id], otherValue: currentOtherValue)
-      : null;
+  String? errorFor(SurveyQuestion question) =>
+      showValidation ? question.validate(answers[question.id], otherValue: otherValueFor(question)) : null;
 
   SurveyFillReady copyWith({
     Map<String, Object?>? answers,
-    int? currentQuestionIndex,
+    int? currentSectionIndex,
     bool? isSaving,
     bool? isSubmitting,
     bool? showValidation,
@@ -100,7 +94,7 @@ class SurveyFillReady extends SurveyFillState {
       survey: survey,
       localId: localId,
       answers: answers ?? this.answers,
-      currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
+      currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex,
       isSaving: isSaving ?? this.isSaving,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       showValidation: showValidation ?? this.showValidation,
@@ -110,7 +104,7 @@ class SurveyFillReady extends SurveyFillState {
 }
 
 /// Drives one "fill in a survey" session: loads (or creates) the draft,
-/// tracks the current question, validates, autosaves to SQLite on every
+/// tracks the current section, validates, autosaves to SQLite on every
 /// change (debounced) so nothing is lost if the app is killed mid-fill, and
 /// hands off to the repository on submit.
 ///
@@ -140,7 +134,7 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
         survey: survey,
         localId: _args.responseLocalId!,
         answers: existing?.answers ?? {},
-        currentQuestionIndex: 0,
+        currentSectionIndex: 0,
       );
       return;
     }
@@ -152,7 +146,7 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
       surveyorId: user?.id,
       surveyorName: user?.name,
     );
-    state = SurveyFillReady(survey: survey, localId: draft.localId, answers: const {}, currentQuestionIndex: 0);
+    state = SurveyFillReady(survey: survey, localId: draft.localId, answers: const {}, currentSectionIndex: 0);
 
     unawaited(_captureStartMetadata(draft.localId));
   }
@@ -199,43 +193,43 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
     if (after is SurveyFillReady) state = after.copyWith(isSaving: false);
   }
 
-  /// Validates the current question and advances if it passes. Returns
-  /// false (and surfaces the validation message) otherwise.
+  /// Validates every question in the current section and advances if they
+  /// all pass. Returns false (and surfaces validation messages inline on
+  /// whichever question(s) failed) otherwise.
   bool goNext() {
     final current = state;
     if (current is! SurveyFillReady) return false;
-    final error = current.currentQuestion.validate(
-      current.answers[current.currentQuestion.id],
-      otherValue: current.currentOtherValue,
+    final hasError = current.currentQuestions.any(
+      (q) => q.validate(current.answers[q.id], otherValue: current.otherValueFor(q)) != null,
     );
-    if (error != null) {
+    if (hasError) {
       state = current.copyWith(showValidation: true);
       return false;
     }
-    if (current.isLastQuestion) return false;
-    state = current.copyWith(currentQuestionIndex: current.currentQuestionIndex + 1, showValidation: false);
+    if (current.isLastSection) return false;
+    state = current.copyWith(currentSectionIndex: current.currentSectionIndex + 1, showValidation: false);
     return true;
   }
 
   void goBack() {
     final current = state;
-    if (current is! SurveyFillReady || current.isFirstQuestion) return;
-    state = current.copyWith(currentQuestionIndex: current.currentQuestionIndex - 1, showValidation: false);
+    if (current is! SurveyFillReady || current.isFirstSection) return;
+    state = current.copyWith(currentSectionIndex: current.currentSectionIndex - 1, showValidation: false);
   }
 
-  /// Validates every question (not just the current one) before submitting;
-  /// jumps to the first invalid question if any fails. Returns true only
-  /// when the response was actually queued for submission.
+  /// Validates every question across every section before submitting; jumps
+  /// to the first section with an invalid question if any fails. Returns
+  /// true only when the response was actually queued for submission.
   Future<bool> submit() async {
     final current = state;
     if (current is! SurveyFillReady) return false;
 
-    final questions = current.survey.allQuestions;
-    for (var i = 0; i < questions.length; i++) {
-      final question = questions[i];
-      final error = question.validate(current.answers[question.id], otherValue: current.answers[question.otherAnswerKey] as String?);
-      if (error != null) {
-        state = current.copyWith(currentQuestionIndex: i, showValidation: true);
+    for (var i = 0; i < current.survey.sections.length; i++) {
+      final hasError = current.survey.sections[i].questions.any(
+        (q) => q.validate(current.answers[q.id], otherValue: current.answers[q.otherAnswerKey] as String?) != null,
+      );
+      if (hasError) {
+        state = current.copyWith(currentSectionIndex: i, showValidation: true);
         return false;
       }
     }

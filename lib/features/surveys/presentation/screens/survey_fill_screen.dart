@@ -6,7 +6,7 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/gradient_app_bar.dart';
+import '../../../../core/widgets/brand_app_bar.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../survey_fill_controller.dart';
 import '../widgets/question_field.dart';
@@ -31,7 +31,7 @@ class SurveyFillScreen extends ConsumerWidget {
     });
 
     return Scaffold(
-      appBar: GradientAppBar(
+      appBar: BrandAppBar(
         title: Text(state is SurveyFillReady ? state.survey.title : 'Encuesta'),
       ),
       body: switch (state) {
@@ -55,68 +55,81 @@ class _FillBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final question = state.currentQuestion;
-    final (section, sectionNumber) = state.currentSectionInfo;
-    final showSectionLabel = state.survey.sections.length > 1;
+    final section = state.currentSection;
+    final isTablet = Responsive.isTabletOrWider(context);
+    // A whole section's worth of questions on screen at once, scrolled
+    // together — not the old "one question, tap Next" flow. Sections are
+    // usually 2-4 questions (see the sample surveys), which is enough to
+    // scroll through comfortably without feeling like a wall of text; a
+    // section with a lot more than that would be a survey-authoring
+    // problem, not something the fill screen should try to paper over by
+    // inventing its own arbitrary chunking on top of the survey's own
+    // structure.
+    final questionSpacing = isTablet ? AppSpacing.xxl : AppSpacing.xl;
 
     return Column(
       children: [
         SurveyProgressBar(
           progress: state.progress,
-          current: state.currentQuestionIndex + 1,
-          total: state.survey.allQuestions.length,
-          sectionLabel: showSectionLabel
-              ? 'Sección $sectionNumber de ${state.survey.sections.length}'
-                  '${section.title.isNotEmpty ? ' · ${section.title}' : ''}'
-              : null,
+          current: state.sectionNumber,
+          total: state.totalSections,
+          sectionTitle: state.totalSections > 1 ? section.title : null,
         ),
         Expanded(
           child: SingleChildScrollView(
             child: ResponsiveCenter(
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                duration: const Duration(milliseconds: 260),
                 transitionBuilder: (child, animation) => FadeTransition(
                   opacity: animation,
                   child: SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0.05, 0), end: Offset.zero).animate(animation),
+                    position: Tween<Offset>(begin: const Offset(0.04, 0), end: Offset.zero).animate(animation),
                     child: child,
                   ),
                 ),
                 child: Column(
-                  key: ValueKey(question.id),
+                  key: ValueKey(state.currentSectionIndex),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!question.isRequired)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                        child: Text(
-                          'Opcional',
+                    for (final (index, question) in state.currentQuestions.indexed) ...[
+                      if (index > 0) ...[
+                        SizedBox(height: questionSpacing),
+                        const Divider(height: 1),
+                        SizedBox(height: questionSpacing),
+                      ],
+                      if (!question.isRequired)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                          child: Text(
+                            'Opcional',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      Text(question.text, style: Theme.of(context).textTheme.headlineSmall),
+                      if (question.helperText != null && question.helperText!.trim().isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          question.helperText!,
                           style: Theme.of(context)
                               .textTheme
-                              .labelMedium
+                              .bodyMedium
                               ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
-                      ),
-                    Text(question.text, style: Theme.of(context).textTheme.headlineSmall),
-                    if (question.helperText != null && question.helperText!.trim().isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        question.helperText!,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ],
+                      const SizedBox(height: AppSpacing.lg),
+                      QuestionField(
+                        question: question,
+                        value: state.answers[question.id],
+                        otherValue: state.otherValueFor(question),
+                        errorText: state.errorFor(question),
+                        onChanged: (value) => controller.setAnswer(question.id, value),
+                        onOtherChanged: (text) => controller.setAnswer(question.otherAnswerKey, text),
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.lg),
-                    QuestionField(
-                      question: question,
-                      value: state.answers[question.id],
-                      otherValue: state.currentOtherValue,
-                      errorText: state.currentQuestionError,
-                      onChanged: (value) => controller.setAnswer(question.id, value),
-                      onOtherChanged: (text) => controller.setAnswer(question.otherAnswerKey, text),
-                    ),
+                    const SizedBox(height: AppSpacing.xl),
                   ],
                 ),
               ),
@@ -144,10 +157,10 @@ class _FillNavigationBar extends StatelessWidget {
       child: Row(
         children: [
           AnimatedOpacity(
-            opacity: state.isFirstQuestion ? 0 : 1,
+            opacity: state.isFirstSection ? 0 : 1,
             duration: const Duration(milliseconds: 150),
             child: IgnorePointer(
-              ignoring: state.isFirstQuestion,
+              ignoring: state.isFirstSection,
               child: SizedBox(
                 height: AppSpacing.buttonHeight,
                 width: AppSpacing.buttonHeight,
@@ -174,11 +187,11 @@ class _FillNavigationBar extends StatelessWidget {
           Expanded(
             flex: 3,
             child: AppButton(
-              label: state.isLastQuestion ? 'Enviar encuesta' : 'Siguiente',
-              icon: state.isLastQuestion ? Icons.send_rounded : Icons.arrow_forward_rounded,
+              label: state.isLastSection ? 'Enviar encuesta' : 'Siguiente',
+              icon: state.isLastSection ? Icons.send_rounded : Icons.arrow_forward_rounded,
               isLoading: state.isSubmitting,
               onPressed: () {
-                if (state.isLastQuestion) {
+                if (state.isLastSection) {
                   controller.submit();
                 } else {
                   controller.goNext();

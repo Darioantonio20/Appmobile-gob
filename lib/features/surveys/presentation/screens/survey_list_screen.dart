@@ -7,7 +7,7 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/result.dart';
-import '../../../../core/widgets/gradient_app_bar.dart';
+import '../../../../core/widgets/brand_app_bar.dart';
 import '../../../../core/widgets/staggered_fade_in.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../auth/presentation/auth_controller.dart';
@@ -55,7 +55,7 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
     final responsesAsync = ref.watch(allResponsesProvider);
 
     return Scaffold(
-      appBar: GradientAppBar(
+      appBar: BrandAppBar(
         title: Text(user == null ? 'Encuestas' : 'Hola, ${user.name.split(' ').first}'),
         actions: [
           IconButton(

@@ -15,9 +15,26 @@ class AppTheme {
   static ThemeData dark() => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.seed,
-      brightness: brightness,
+    // Material 3's ColorScheme.fromSeed only takes one seed and derives
+    // secondary/tertiary from it automatically — fine when there's one
+    // brand color, but this brand kit specifies three (primary/secondary/
+    // tertiary each a distinct official Pantone). Seeding three independent
+    // schemes and stitching primary/secondary/tertiary (plus their on-/
+    // container pairs) together keeps each role's contrast properly
+    // HCT-computed instead of hand-picking colors that might not pass.
+    final primarySeeded = ColorScheme.fromSeed(seedColor: AppColors.brandPrimary, brightness: brightness);
+    final secondarySeeded = ColorScheme.fromSeed(seedColor: AppColors.brandSecondary, brightness: brightness);
+    final tertiarySeeded = ColorScheme.fromSeed(seedColor: AppColors.brandTertiary, brightness: brightness);
+
+    final colorScheme = primarySeeded.copyWith(
+      secondary: secondarySeeded.primary,
+      onSecondary: secondarySeeded.onPrimary,
+      secondaryContainer: secondarySeeded.primaryContainer,
+      onSecondaryContainer: secondarySeeded.onPrimaryContainer,
+      tertiary: tertiarySeeded.primary,
+      onTertiary: tertiarySeeded.onPrimary,
+      tertiaryContainer: tertiarySeeded.primaryContainer,
+      onTertiaryContainer: tertiarySeeded.onPrimaryContainer,
     );
 
     final base = ThemeData(

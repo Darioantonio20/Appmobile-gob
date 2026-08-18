@@ -84,14 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Container(
                           width: 96,
                           height: 96,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
-                            ),
-                          ),
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.primary),
                           child: Icon(Icons.fact_check_rounded, size: 46, color: theme.colorScheme.onPrimary),
                         ),
                       ),

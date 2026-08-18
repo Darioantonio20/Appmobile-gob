@@ -8,7 +8,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/result.dart';
 import '../../../core/widgets/app_button.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/brand_app_bar.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/sync_status_badge.dart';
@@ -28,7 +28,7 @@ class SyncCenterScreen extends ConsumerWidget {
     final engineState = ref.watch(syncEngineProvider);
 
     return Scaffold(
-      appBar: const GradientAppBar(title: Text('Sincronización')),
+      appBar: const BrandAppBar(title: Text('Sincronización')),
       body: allAsync.when(
         loading: () => const LoadingView(),
         error: (error, _) => ErrorStateView(failure: AppFailure.unknown(null, error)),

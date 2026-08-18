@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
@@ -83,7 +82,7 @@ class QuestionField extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Icon(Icons.error_outline, size: 18, color: Theme.of(context).colorScheme.error),
+              Icon(Icons.error_outline_rounded, size: 18, color: Theme.of(context).colorScheme.error),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(errorText!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -455,35 +454,118 @@ class _YesNoField extends StatelessWidget {
   }
 }
 
+/// Three plain dropdowns (día/mes/año) instead of [showDatePicker].
+///
+/// Deliberately not Flutter's built-in Material date picker: it computes its
+/// header text scale from the ambient [MediaQuery] in a way that threw
+/// `'maxScale > minScale': is not true` on a couple of real
+/// devices/browsers — a framework-internal crash outside this app's
+/// control. Three dropdowns sidestep it entirely (no dialog route, no
+/// internal text-scale math) and fit this app's existing tap-to-select
+/// pattern (see [_ChoiceTile]) better than a calendar grid does anyway.
 class _DateField extends StatelessWidget {
   const _DateField({required this.value, required this.onChanged});
 
   final String? value;
   final ValueChanged<Object?> onChanged;
 
+  static const _months = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final now = DateTime.now();
     final parsed = value == null ? null : DateTime.tryParse(value!);
-    final label = parsed == null ? 'Seleccionar fecha' : DateFormat('d \'de\' MMMM \'de\' y', 'es_MX').format(parsed);
+    final day = parsed?.day;
+    final month = parsed?.month;
+    final year = parsed?.year;
 
-    return OutlinedButton.icon(
-      onPressed: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: parsed ?? now,
-          firstDate: DateTime(now.year - 100),
-          lastDate: DateTime(now.year + 5),
-          locale: const Locale('es', 'MX'),
-        );
-        if (picked != null) onChanged(picked.toIso8601String());
-      },
-      icon: const Icon(Icons.calendar_today_rounded),
-      label: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(label, style: theme.textTheme.bodyLarge),
+    final years = [for (var y = now.year; y >= now.year - 5; y--) y];
+    final daysInSelectedMonth = DateTime(year ?? now.year, (month ?? now.month) + 1, 0).day;
+
+    void update({int? newDay, int? newMonth, int? newYear}) {
+      final y = newYear ?? year ?? now.year;
+      final m = newMonth ?? month ?? now.month;
+      final maxDay = DateTime(y, m + 1, 0).day;
+      var d = newDay ?? day ?? now.day;
+      if (d > maxDay) d = maxDay;
+      onChanged(DateTime(y, m, d).toIso8601String());
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: _DatePartDropdown(
+            label: 'Día',
+            value: day,
+            items: [for (var d = 1; d <= daysInSelectedMonth; d++) (d, '$d')],
+            onChanged: (d) => update(newDay: d),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          flex: 5,
+          child: _DatePartDropdown(
+            label: 'Mes',
+            value: month,
+            items: [for (var m = 1; m <= 12; m++) (m, _months[m - 1])],
+            onChanged: (m) => update(newMonth: m),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          flex: 3,
+          child: _DatePartDropdown(
+            label: 'Año',
+            value: year,
+            items: [for (final y in years) (y, '$y')],
+            onChanged: (y) => update(newYear: y),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DatePartDropdown extends StatelessWidget {
+  const _DatePartDropdown({required this.label, required this.value, required this.items, required this.onChanged});
+
+  final String label;
+  final int? value;
+  final List<(int, String)> items;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<int>(
+      initialValue: value,
+      isExpanded: true,
+      hint: const Text('—'),
+      decoration: InputDecoration(
+        labelText: label,
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
       ),
+      items: [
+        for (final (itemValue, itemLabel) in items)
+          DropdownMenuItem(value: itemValue, child: Text(itemLabel, overflow: TextOverflow.ellipsis)),
+      ],
+      onChanged: (picked) {
+        if (picked != null) onChanged(picked);
+      },
     );
   }
 }

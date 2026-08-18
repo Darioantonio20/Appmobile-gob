@@ -36,11 +36,7 @@ class ProfileScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
-                  ),
+                  color: theme.colorScheme.primary,
                 ),
                 child: Column(
                   children: [

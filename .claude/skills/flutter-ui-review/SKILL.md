@@ -86,9 +86,29 @@ Also reuse `StaggeredFadeSlideIn` (`lib/core/widgets/staggered_fade_in.dart`) fo
 a screen's *content* once it's on screen — header/title/form/list-item entrances (login,
 profile, survey detail, sync center, the survey grid) all use it with an `index` per
 section/item so things cascade in instead of appearing all at once. And reuse
-`GradientAppBar` (`lib/core/widgets/gradient_app_bar.dart`, primary→tertiary) instead of a
-plain `AppBar` on top-level screens — it's this app's single most visible "does this look
-designed" signal since it's on screen everywhere, so don't reintroduce a plain one.
+`BrandAppBar` (`lib/core/widgets/brand_app_bar.dart`, solid `colorScheme.primary`) instead
+of a plain `AppBar` on top-level screens — it's this app's single most visible "does this
+look designed" signal since it's on screen everywhere, so don't reintroduce a plain one.
+(It was a primary→tertiary gradient at first — dropped per explicit feedback that it read
+as muddy; see the brand color section below for why solid is also just the right call
+here regardless of taste.)
+
+## Brand color — solid, not gradients
+
+The palette comes from an official brand kit (Pantone P 131-6 C primary / P 69-70 C
+secondary / P 53-16 C tertiary, plus black and P 23-2 C as complementary neutrals — see
+`lib/core/theme/app_colors.dart`). `AppTheme` seeds `ColorScheme.fromSeed` three times
+(once per brand color) and stitches primary/secondary/tertiary together rather than
+letting Material auto-derive secondary/tertiary from one seed — that's the right move
+whenever a brand kit specifies more than one official color, so a future palette swap
+should keep that pattern rather than going back to a single seed.
+
+This app's design language is flat everywhere else (`cardTheme.elevation: 0`, no
+`BoxShadow` anywhere, see the Contrast section above) — gradients broke that consistency
+even before anyone objected to how one looked, so **don't reach for
+`LinearGradient`/`RadialGradient` for a background here**. Use a solid
+`colorScheme.primary`/`secondary`/`tertiary` (or a `Container` with a solid `color`)
+instead — `BrandAppBar` and the login/profile hero header are the reference.
 
 ## MediaQuery / text scaling — don't hand-roll this
 
@@ -105,6 +125,15 @@ Use `MediaQuery.withClampedTextScaling(minScaleFactor:, maxScaleFactor:, child:)
 — it's the framework's own replacement for exactly that hand-rolled pattern, and resolves
 correctly per-subtree. If you ever need text-scale clamping somewhere else in the app,
 reach for this API, not the manual `copyWith` version.
+
+That fix wasn't actually sufficient on its own: the same assertion resurfaced from inside
+`showDatePicker` on a different device/browser afterward — the picker's Material-internal
+header text-scale math can apparently still produce an invalid clamp regardless of what
+the app does upstream. Rather than continue chasing a framework-internal edge case,
+`_DateField` in `question_field.dart` now avoids `showDatePicker` entirely (three plain
+`DropdownButtonFormField`s for día/mes/año). **Don't reintroduce `showDatePicker`** —
+if a future question type needs a date/time picker, build it the same way: a custom,
+tap-based control instead of a Material dialog picker.
 
 ## AppBar / icons — keep it consistent, not just "a valid icon"
 

@@ -1,11 +1,7 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:sqlite3/sqlite3.dart';
+
+import 'connection/connection.dart';
 
 part 'app_database.g.dart';
 
@@ -89,7 +85,7 @@ class SurveyResponsesTable extends Table {
 
 @DriftDatabase(tables: [SurveysTable, SurveyResponsesTable])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  AppDatabase() : super(openConnection());
 
   /// Lets tests (or a future desktop-only tool) inject an in-memory
   /// connection instead of opening a real file.
@@ -235,16 +231,3 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
   ref.onDispose(db.close);
   return db;
 });
-
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    // Ensures the bundled sqlite3 native library is used consistently
-    // across Android/iOS/desktop instead of relying on the OS's version.
-    final cachebase = (await getTemporaryDirectory()).path;
-    sqlite3.tempDirectory = cachebase;
-
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'appmobile_gob.sqlite'));
-    return NativeDatabase.createInBackground(file);
-  });
-}
