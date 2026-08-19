@@ -28,6 +28,11 @@ class SurveysTable extends Table {
   DateTimeColumn get fetchedAt => dateTime()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 
+  /// Assignment/availability window from the backend (added in schema v4) —
+  /// informational only; see `Survey.validFrom`/`validUntil`.
+  DateTimeColumn get validFrom => dateTime().nullable()();
+  DateTimeColumn get validUntil => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -92,7 +97,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withConnection(super.connection);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -114,6 +119,10 @@ class AppDatabase extends _$AppDatabase {
             // recreate the table empty rather than transform old rows.
             await m.deleteTable('surveys_table');
             await m.createTable(surveysTable);
+          }
+          if (from < 4) {
+            await m.addColumn(surveysTable, surveysTable.validFrom);
+            await m.addColumn(surveysTable, surveysTable.validUntil);
           }
         },
       );

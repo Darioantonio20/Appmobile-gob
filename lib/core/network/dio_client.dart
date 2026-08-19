@@ -26,7 +26,11 @@ class DioClient {
             baseUrl: baseUrl ?? AppConstants.apiBaseUrl,
             connectTimeout: AppConstants.connectTimeout,
             receiveTimeout: AppConstants.receiveTimeout,
-            headers: const {'Content-Type': 'application/json'},
+            // Accept is required by Laravel to actually return JSON error
+            // bodies (401/422/etc.) instead of an HTML error page — without
+            // it, `network_exceptions.dart`'s `message` extraction has
+            // nothing to read.
+            headers: const {'Content-Type': 'application/json', 'Accept': 'application/json'},
           ),
         ) {
     dio.interceptors.add(

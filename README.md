@@ -69,32 +69,41 @@ Flutter/Drift/Dio), `data/` (implementación con Drift/Dio), `presentation/`
 
 ### Estructura de una encuesta
 
-`Survey → List<SurveySection> → List<SurveyQuestion>`. El llenado sigue
-siendo una pregunta a la vez (mejor para el público objetivo), pero agrupa
-por sección en la barra de progreso ("Sección 2 de 3 · Tu experiencia").
-Tipos de pregunta soportados (`QuestionType`): texto corto, texto largo,
-opción única, opción múltiple (ambas con "Otra, especifica" opcional vía
-`allowOther`), escala 1–N, sí/no, fecha, y **matriz Likert** (tarjetas
-apiladas en teléfono, tabla real en tablet). Ver
-`lib/features/surveys/domain/survey.dart`.
+`Survey → List<SurveySection> → List<SurveyQuestion>`. El llenado muestra
+una sección completa a la vez (varias preguntas juntas, con scroll), no
+pregunta por pregunta — agrupa por sección en la barra de progreso
+("Sección 2 de 3 · Tu experiencia").
 
-## ⚠️ Antes de conectarlo a tu backend real
+El backend no envía un tipo de pregunta explícito y legible (`type` llega
+como un código `"TR-02"`.."TR-08"` sin documentar) — `SurveyQuestion.fromJson`
+lo **infiere de la estructura** (¿tiene opciones? ¿tiene `sub_questions`?
+¿tiene rango numérico?), documentado con la tabla de evidencia completa en
+`lib/features/surveys/domain/survey.dart`. Dos de los ocho códigos
+(`TR-01`, `TR-07`) nunca aparecieron en el ejemplo — uno de ellos se
+asume tentativamente como fecha; **confirma con el backend cuál es el
+código real de una pregunta de fecha** si el llenado del calendario no
+aparece donde debería.
 
-El contrato REST en `lib/core/network/api_endpoints.dart` es un placeholder
-razonable (`GET /surveys`, `POST /surveys/{id}/responses`, etc.), documentado
-ahí mismo. Cuando tengas la API real de la web de encuestas, solo hace falta
-tocar:
+También soportado: **lógica de salto condicional** (`logic_jumps` —
+seleccionar cierta opción salta directamente a otra sección, saltándose
+las de en medio) y **matriz Likert** (una pregunta con `sub_questions` +
+opciones = tabla de filas × escala compartida; tarjetas apiladas en
+teléfono, tabla real en tablet).
 
-- `lib/core/network/api_endpoints.dart` (rutas)
-- `lib/features/auth/data/auth_remote_datasource.dart`
-- `lib/features/surveys/data/survey_remote_datasource.dart`
-- `lib/features/surveys/domain/survey.dart` (si el JSON de preguntas trae
-  campos distintos a `id/text/type/required/options/scaleMin/scaleMax`)
+## Backend
 
-Nada más se entera del cambio — esa es la idea de tener `domain/` separado.
+Ya conectado contra la API real (Laravel + Sanctum), documentada en
+`lib/core/network/api_endpoints.dart`: login, listado y detalle de
+encuestas confirmados contra ejemplos reales. **El envío de una encuesta
+llena (`POST /surveys/{id}/responses`) sigue siendo un contrato supuesto**
+— esa parte de la documentación nunca llegó — así que confirma esa forma
+con el backend cuando esté lista; solo hay que tocar
+`SurveyRemoteDataSource.submitResponse`.
 
-La URL base se pasa por variable de entorno, no hay que tocar código para
-cambiar de ambiente:
+Por default (`AppConstants.apiBaseUrl`) apunta a `http://10.0.2.2:8000/api`
+— tu Laravel local (`localhost:8000`) visto desde el emulador de Android.
+Para un dispositivo físico o un ambiente real, pasa la URL por variable de
+entorno, no hay que tocar código:
 
 ```bash
 flutter run --dart-define=API_BASE_URL=https://tu-api-real.gob.mx/api
@@ -119,15 +128,25 @@ hay que regenerar el código de Drift:
 dart run build_runner build --delete-conflicting-outputs
 ```
 
+## Identidad de marca
+
+Assets oficiales ("Humanismo que Transforma", Gobierno de Chiapas 2024–2030)
+en `assets/branding/`, referenciados desde `lib/core/theme/brand_assets.dart`
+— nunca una ruta de string suelta en una pantalla. Login y perfil ya los
+usan; ver `core/widgets/brand_grecas_accent.dart` para el acento decorativo
+lateral.
+
 ## Qué falta / próximos pasos sugeridos
 
-- Conectar el contrato REST real (ver arriba) — ahora incluye `folio`,
-  `surveyorId`/`surveyorName`, `location` y `appVersion` en el body de
-  `POST /surveys/{id}/responses`.
+- Confirmar el contrato real de `POST /surveys/{id}/responses` (ver
+  sección Backend arriba) — hoy es un supuesto razonable, no confirmado.
+- Confirmar qué código `type` (`TR-01` o `TR-07`) es en realidad una
+  pregunta de fecha (ver Estructura de una encuesta arriba).
 - Pantalla "olvidé mi contraseña" si el backend la soporta.
 - Captura de foto por pregunta, si alguna encuesta la necesita — mismo
   patrón que los demás `QuestionType`.
-- Ícono y nombre de la app todavía son los de plantilla de Flutter.
+- Ícono y nombre de la app todavía son los de plantilla de Flutter (el
+  logo de marca sí está integrado en login/perfil — ver arriba).
 - Tests unitarios del repositorio/sync engine (hoy solo hay un smoke test
   de arranque).
 

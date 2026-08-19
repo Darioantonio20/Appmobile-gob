@@ -35,11 +35,12 @@ class SurveyResponse {
   final String surveyTitle;
 
   /// `{ questionId: answerValue }`. Value shape depends on the question
-  /// type: `String` (text/date/single-choice), `List<String>`
-  /// (multiple-choice), `num` (scale), or `Map<String, String>`
-  /// (row id → chosen option, for a Likert matrix). A synthetic
-  /// `"<questionId>_other"` key holds the free-text value when the user
-  /// picked "Otra (especifica)" — see `SurveyQuestion.otherAnswerKey`.
+  /// type: `String` (text/date/numeric/single-choice — the selected
+  /// option's id), `List<String>` (multiple-choice — selected option ids),
+  /// or `Map<String, String>` (row question id → chosen shared-scale option
+  /// id, for a Likert matrix). A synthetic `"<questionId>_opt_<optionId>"`
+  /// key holds the free-text value for any option with `requiresText` —
+  /// see `SurveyQuestion.textAnswerKeyFor`.
   final Map<String, Object?> answers;
 
   final SyncStatus status;

@@ -86,6 +86,28 @@ class $SurveysTableTable extends SurveysTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _validFromMeta = const VerificationMeta(
+    'validFrom',
+  );
+  @override
+  late final GeneratedColumn<DateTime> validFrom = GeneratedColumn<DateTime>(
+    'valid_from',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _validUntilMeta = const VerificationMeta(
+    'validUntil',
+  );
+  @override
+  late final GeneratedColumn<DateTime> validUntil = GeneratedColumn<DateTime>(
+    'valid_until',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -95,6 +117,8 @@ class $SurveysTableTable extends SurveysTable
     updatedAt,
     fetchedAt,
     isActive,
+    validFrom,
+    validUntil,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -163,6 +187,18 @@ class $SurveysTableTable extends SurveysTable
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('valid_from')) {
+      context.handle(
+        _validFromMeta,
+        validFrom.isAcceptableOrUnknown(data['valid_from']!, _validFromMeta),
+      );
+    }
+    if (data.containsKey('valid_until')) {
+      context.handle(
+        _validUntilMeta,
+        validUntil.isAcceptableOrUnknown(data['valid_until']!, _validUntilMeta),
+      );
+    }
     return context;
   }
 
@@ -200,6 +236,14 @@ class $SurveysTableTable extends SurveysTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
       )!,
+      validFrom: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}valid_from'],
+      ),
+      validUntil: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}valid_until'],
+      ),
     );
   }
 
@@ -221,6 +265,11 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
   final DateTime updatedAt;
   final DateTime fetchedAt;
   final bool isActive;
+
+  /// Assignment/availability window from the backend (added in schema v4) —
+  /// informational only; see `Survey.validFrom`/`validUntil`.
+  final DateTime? validFrom;
+  final DateTime? validUntil;
   const SurveyRow({
     required this.id,
     required this.title,
@@ -229,6 +278,8 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     required this.updatedAt,
     required this.fetchedAt,
     required this.isActive,
+    this.validFrom,
+    this.validUntil,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -242,6 +293,12 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['fetched_at'] = Variable<DateTime>(fetchedAt);
     map['is_active'] = Variable<bool>(isActive);
+    if (!nullToAbsent || validFrom != null) {
+      map['valid_from'] = Variable<DateTime>(validFrom);
+    }
+    if (!nullToAbsent || validUntil != null) {
+      map['valid_until'] = Variable<DateTime>(validUntil);
+    }
     return map;
   }
 
@@ -256,6 +313,12 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       updatedAt: Value(updatedAt),
       fetchedAt: Value(fetchedAt),
       isActive: Value(isActive),
+      validFrom: validFrom == null && nullToAbsent
+          ? const Value.absent()
+          : Value(validFrom),
+      validUntil: validUntil == null && nullToAbsent
+          ? const Value.absent()
+          : Value(validUntil),
     );
   }
 
@@ -272,6 +335,8 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
       isActive: serializer.fromJson<bool>(json['isActive']),
+      validFrom: serializer.fromJson<DateTime?>(json['validFrom']),
+      validUntil: serializer.fromJson<DateTime?>(json['validUntil']),
     );
   }
   @override
@@ -285,6 +350,8 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
       'isActive': serializer.toJson<bool>(isActive),
+      'validFrom': serializer.toJson<DateTime?>(validFrom),
+      'validUntil': serializer.toJson<DateTime?>(validUntil),
     };
   }
 
@@ -296,6 +363,8 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     DateTime? updatedAt,
     DateTime? fetchedAt,
     bool? isActive,
+    Value<DateTime?> validFrom = const Value.absent(),
+    Value<DateTime?> validUntil = const Value.absent(),
   }) => SurveyRow(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -304,6 +373,8 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     updatedAt: updatedAt ?? this.updatedAt,
     fetchedAt: fetchedAt ?? this.fetchedAt,
     isActive: isActive ?? this.isActive,
+    validFrom: validFrom.present ? validFrom.value : this.validFrom,
+    validUntil: validUntil.present ? validUntil.value : this.validUntil,
   );
   SurveyRow copyWithCompanion(SurveysTableCompanion data) {
     return SurveyRow(
@@ -318,6 +389,10 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      validFrom: data.validFrom.present ? data.validFrom.value : this.validFrom,
+      validUntil: data.validUntil.present
+          ? data.validUntil.value
+          : this.validUntil,
     );
   }
 
@@ -330,7 +405,9 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
           ..write('sectionsJson: $sectionsJson, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('fetchedAt: $fetchedAt, ')
-          ..write('isActive: $isActive')
+          ..write('isActive: $isActive, ')
+          ..write('validFrom: $validFrom, ')
+          ..write('validUntil: $validUntil')
           ..write(')'))
         .toString();
   }
@@ -344,6 +421,8 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
     updatedAt,
     fetchedAt,
     isActive,
+    validFrom,
+    validUntil,
   );
   @override
   bool operator ==(Object other) =>
@@ -355,7 +434,9 @@ class SurveyRow extends DataClass implements Insertable<SurveyRow> {
           other.sectionsJson == this.sectionsJson &&
           other.updatedAt == this.updatedAt &&
           other.fetchedAt == this.fetchedAt &&
-          other.isActive == this.isActive);
+          other.isActive == this.isActive &&
+          other.validFrom == this.validFrom &&
+          other.validUntil == this.validUntil);
 }
 
 class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
@@ -366,6 +447,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
   final Value<DateTime> updatedAt;
   final Value<DateTime> fetchedAt;
   final Value<bool> isActive;
+  final Value<DateTime?> validFrom;
+  final Value<DateTime?> validUntil;
   final Value<int> rowid;
   const SurveysTableCompanion({
     this.id = const Value.absent(),
@@ -375,6 +458,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     this.updatedAt = const Value.absent(),
     this.fetchedAt = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.validFrom = const Value.absent(),
+    this.validUntil = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveysTableCompanion.insert({
@@ -385,6 +470,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     required DateTime updatedAt,
     required DateTime fetchedAt,
     this.isActive = const Value.absent(),
+    this.validFrom = const Value.absent(),
+    this.validUntil = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -399,6 +486,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? fetchedAt,
     Expression<bool>? isActive,
+    Expression<DateTime>? validFrom,
+    Expression<DateTime>? validUntil,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -409,6 +498,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
       if (updatedAt != null) 'updated_at': updatedAt,
       if (fetchedAt != null) 'fetched_at': fetchedAt,
       if (isActive != null) 'is_active': isActive,
+      if (validFrom != null) 'valid_from': validFrom,
+      if (validUntil != null) 'valid_until': validUntil,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -421,6 +512,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     Value<DateTime>? updatedAt,
     Value<DateTime>? fetchedAt,
     Value<bool>? isActive,
+    Value<DateTime?>? validFrom,
+    Value<DateTime?>? validUntil,
     Value<int>? rowid,
   }) {
     return SurveysTableCompanion(
@@ -431,6 +524,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
       updatedAt: updatedAt ?? this.updatedAt,
       fetchedAt: fetchedAt ?? this.fetchedAt,
       isActive: isActive ?? this.isActive,
+      validFrom: validFrom ?? this.validFrom,
+      validUntil: validUntil ?? this.validUntil,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -459,6 +554,12 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (validFrom.present) {
+      map['valid_from'] = Variable<DateTime>(validFrom.value);
+    }
+    if (validUntil.present) {
+      map['valid_until'] = Variable<DateTime>(validUntil.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -475,6 +576,8 @@ class SurveysTableCompanion extends UpdateCompanion<SurveyRow> {
           ..write('updatedAt: $updatedAt, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('isActive: $isActive, ')
+          ..write('validFrom: $validFrom, ')
+          ..write('validUntil: $validUntil, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1549,6 +1652,8 @@ typedef $$SurveysTableTableCreateCompanionBuilder =
       required DateTime updatedAt,
       required DateTime fetchedAt,
       Value<bool> isActive,
+      Value<DateTime?> validFrom,
+      Value<DateTime?> validUntil,
       Value<int> rowid,
     });
 typedef $$SurveysTableTableUpdateCompanionBuilder =
@@ -1560,6 +1665,8 @@ typedef $$SurveysTableTableUpdateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<DateTime> fetchedAt,
       Value<bool> isActive,
+      Value<DateTime?> validFrom,
+      Value<DateTime?> validUntil,
       Value<int> rowid,
     });
 
@@ -1604,6 +1711,16 @@ class $$SurveysTableTableFilterComposer
 
   ColumnFilters<bool> get isActive => $composableBuilder(
     column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get validFrom => $composableBuilder(
+    column: $table.validFrom,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get validUntil => $composableBuilder(
+    column: $table.validUntil,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1651,6 +1768,16 @@ class $$SurveysTableTableOrderingComposer
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get validFrom => $composableBuilder(
+    column: $table.validFrom,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get validUntil => $composableBuilder(
+    column: $table.validUntil,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveysTableTableAnnotationComposer
@@ -1686,6 +1813,14 @@ class $$SurveysTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get validFrom =>
+      $composableBuilder(column: $table.validFrom, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get validUntil => $composableBuilder(
+    column: $table.validUntil,
+    builder: (column) => column,
+  );
 }
 
 class $$SurveysTableTableTableManager
@@ -1726,6 +1861,8 @@ class $$SurveysTableTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime> fetchedAt = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<DateTime?> validFrom = const Value.absent(),
+                Value<DateTime?> validUntil = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveysTableCompanion(
                 id: id,
@@ -1735,6 +1872,8 @@ class $$SurveysTableTableTableManager
                 updatedAt: updatedAt,
                 fetchedAt: fetchedAt,
                 isActive: isActive,
+                validFrom: validFrom,
+                validUntil: validUntil,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1746,6 +1885,8 @@ class $$SurveysTableTableTableManager
                 required DateTime updatedAt,
                 required DateTime fetchedAt,
                 Value<bool> isActive = const Value.absent(),
+                Value<DateTime?> validFrom = const Value.absent(),
+                Value<DateTime?> validUntil = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveysTableCompanion.insert(
                 id: id,
@@ -1755,6 +1896,8 @@ class $$SurveysTableTableTableManager
                 updatedAt: updatedAt,
                 fetchedAt: fetchedAt,
                 isActive: isActive,
+                validFrom: validFrom,
+                validUntil: validUntil,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

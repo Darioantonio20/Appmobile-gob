@@ -42,6 +42,7 @@ class SurveyFillReady extends SurveyFillState {
     required this.localId,
     required this.answers,
     required this.currentSectionIndex,
+    this.sectionPath = const [0],
     this.isSaving = false,
     this.isSubmitting = false,
     this.showValidation = false,
@@ -52,19 +53,26 @@ class SurveyFillReady extends SurveyFillState {
   final String localId;
   final Map<String, Object?> answers;
 
-  /// One "page" is a whole [SurveySection] now, scrolled through together —
-  /// not one question at a time. A section is the natural unit to chunk on:
-  /// it's already how surveys are authored/grouped, so this reuses that
-  /// boundary instead of inventing an arbitrary "N questions per page" that
-  /// would ignore the survey's own structure.
+  /// One "page" is a whole [SurveySection], scrolled through together — not
+  /// one question at a time. A section is the natural unit to chunk on:
+  /// it's already how surveys are authored/grouped.
   final int currentSectionIndex;
+
+  /// Ordered section indices actually visited this session, in order. A
+  /// [LogicJump] can skip straight past intermediate sections, so this can
+  /// be shorter than "every index up to [currentSectionIndex]" — submit-time
+  /// validation only requires answers from sections on this path, and
+  /// [goBack] retraces it (not just `index - 1`), so backing up after a
+  /// jump lands wherever the user actually came from.
+  final List<int> sectionPath;
+
   final bool isSaving;
   final bool isSubmitting;
 
   /// Whether validation errors should currently be shown. Applies to every
-  /// question in [currentSection] at once (see [errorFor]) — with several
-  /// questions on screen together, "the current question" no longer singles
-  /// out just one to validate.
+  /// question in [currentSection] at once — with several questions on
+  /// screen together, "the current question" no longer singles out just one
+  /// to validate.
   final bool showValidation;
   final bool justSubmitted;
 
@@ -73,18 +81,21 @@ class SurveyFillReady extends SurveyFillState {
   int get sectionNumber => currentSectionIndex + 1;
   int get totalSections => survey.sections.length;
 
-  bool get isFirstSection => currentSectionIndex == 0;
+  bool get isFirstSection => sectionPath.length <= 1;
   bool get isLastSection => currentSectionIndex == totalSections - 1;
   double get progress => totalSections == 0 ? 0 : (currentSectionIndex + 1) / totalSections;
 
-  String? otherValueFor(SurveyQuestion question) => answers[question.otherAnswerKey] as String?;
-
+  /// [SurveyQuestion.validate] reads any relevant free-text answers itself
+  /// (via [SurveyQuestion.textAnswerKeyFor]) — passing the whole flat
+  /// answers map is simplest and correct, since those keys are namespaced
+  /// and never collide with a plain question id.
   String? errorFor(SurveyQuestion question) =>
-      showValidation ? question.validate(answers[question.id], otherValue: otherValueFor(question)) : null;
+      showValidation ? question.validate(answers[question.id], textAnswers: answers) : null;
 
   SurveyFillReady copyWith({
     Map<String, Object?>? answers,
     int? currentSectionIndex,
+    List<int>? sectionPath,
     bool? isSaving,
     bool? isSubmitting,
     bool? showValidation,
@@ -95,6 +106,7 @@ class SurveyFillReady extends SurveyFillState {
       localId: localId,
       answers: answers ?? this.answers,
       currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex,
+      sectionPath: sectionPath ?? this.sectionPath,
       isSaving: isSaving ?? this.isSaving,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       showValidation: showValidation ?? this.showValidation,
@@ -104,9 +116,10 @@ class SurveyFillReady extends SurveyFillState {
 }
 
 /// Drives one "fill in a survey" session: loads (or creates) the draft,
-/// tracks the current section, validates, autosaves to SQLite on every
-/// change (debounced) so nothing is lost if the app is killed mid-fill, and
-/// hands off to the repository on submit.
+/// tracks the current section (respecting server-authored skip logic),
+/// validates, autosaves to SQLite on every change (debounced) so nothing is
+/// lost if the app is killed mid-fill, and hands off to the repository on
+/// submit.
 ///
 /// GPS + app version (Módulo C metadata) are captured once, in the
 /// background, right after a *new* draft is created — never blocking the
@@ -123,7 +136,7 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
   Future<void> _init() async {
     final repo = _ref.read(surveyRepositoryProvider);
     final survey = await repo.getSurvey(_args.surveyId);
-    if (survey == null) {
+    if (survey == null || survey.sections.isEmpty) {
       state = const SurveyFillNotFound();
       return;
     }
@@ -193,43 +206,80 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
     if (after is SurveyFillReady) state = after.copyWith(isSaving: false);
   }
 
+  /// If any answered question in [section] carries a [LogicJump] whose
+  /// condition matches what was actually selected, resolve it to a target
+  /// section index. The first matching jump (in question order) wins when
+  /// more than one could fire — ties aren't expected in practice, but this
+  /// keeps the result deterministic. Returns null when nothing fires (or a
+  /// jump's target question can't be found), meaning "just go to the next
+  /// section".
+  int? _jumpTargetSectionFor(SurveyFillReady state, SurveySection section) {
+    for (final question in section.questions) {
+      if (question.logicJumps.isEmpty) continue;
+      final answer = state.answers[question.id];
+      final List<String?> selectedIds =
+          answer is Iterable ? answer.map((v) => v?.toString()).toList() : [answer?.toString()];
+      for (final jump in question.logicJumps) {
+        if (!selectedIds.contains(jump.conditionOptionId)) continue;
+        final targetSection = state.survey.sectionIndexForQuestion(jump.targetQuestionId);
+        if (targetSection != null) return targetSection;
+      }
+    }
+    return null;
+  }
+
   /// Validates every question in the current section and advances if they
-  /// all pass. Returns false (and surfaces validation messages inline on
-  /// whichever question(s) failed) otherwise.
+  /// all pass — following a [LogicJump] when one fires, otherwise moving to
+  /// the next section in order. Returns false (and surfaces validation
+  /// messages inline) if the current section has an invalid answer.
   bool goNext() {
     final current = state;
     if (current is! SurveyFillReady) return false;
-    final hasError = current.currentQuestions.any(
-      (q) => q.validate(current.answers[q.id], otherValue: current.otherValueFor(q)) != null,
-    );
+    final hasError = current.currentQuestions.any((q) => q.validate(current.answers[q.id], textAnswers: current.answers) != null);
     if (hasError) {
       state = current.copyWith(showValidation: true);
       return false;
     }
     if (current.isLastSection) return false;
-    state = current.copyWith(currentSectionIndex: current.currentSectionIndex + 1, showValidation: false);
+
+    final jumpTarget = _jumpTargetSectionFor(current, current.currentSection);
+    final nextIndex = jumpTarget ?? current.currentSectionIndex + 1;
+
+    // If the user went back and changed an earlier answer, this may now
+    // take a different path than before — drop whatever path suffix was
+    // recorded past the current position and start fresh from here.
+    final currentPos = current.sectionPath.indexOf(current.currentSectionIndex);
+    final path = [...current.sectionPath.sublist(0, currentPos + 1), nextIndex];
+
+    state = current.copyWith(currentSectionIndex: nextIndex, sectionPath: path, showValidation: false);
     return true;
   }
 
+  /// Retraces [SurveyFillReady.sectionPath] rather than a plain `index - 1`,
+  /// so backing up after a jump returns to wherever the user actually came
+  /// from.
   void goBack() {
     final current = state;
     if (current is! SurveyFillReady || current.isFirstSection) return;
-    state = current.copyWith(currentSectionIndex: current.currentSectionIndex - 1, showValidation: false);
+    final path = List<int>.from(current.sectionPath)..removeLast();
+    state = current.copyWith(currentSectionIndex: path.last, sectionPath: path, showValidation: false);
   }
 
-  /// Validates every question across every section before submitting; jumps
-  /// to the first section with an invalid question if any fails. Returns
-  /// true only when the response was actually queued for submission.
+  /// Validates every question on the path actually taken (sections skipped
+  /// via a logic jump were never shown, so they're rightly excluded) before
+  /// submitting; jumps to the first section with an invalid question if any
+  /// fails. Returns true only when the response was actually queued for
+  /// submission.
   Future<bool> submit() async {
     final current = state;
     if (current is! SurveyFillReady) return false;
 
-    for (var i = 0; i < current.survey.sections.length; i++) {
-      final hasError = current.survey.sections[i].questions.any(
-        (q) => q.validate(current.answers[q.id], otherValue: current.answers[q.otherAnswerKey] as String?) != null,
+    for (final sectionIndex in current.sectionPath) {
+      final hasError = current.survey.sections[sectionIndex].questions.any(
+        (q) => q.validate(current.answers[q.id], textAnswers: current.answers) != null,
       );
       if (hasError) {
-        state = current.copyWith(currentSectionIndex: i, showValidation: true);
+        state = current.copyWith(currentSectionIndex: sectionIndex, showValidation: true);
         return false;
       }
     }

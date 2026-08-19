@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/sync/sync_status.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/brand_assets.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
@@ -19,8 +20,11 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final user = ref.watch(authControllerProvider);
-    final allResponses = ref.watch(allResponsesProvider).valueOrNull ?? const [];
-    final syncedCount = allResponses.where((r) => r.status == SyncStatus.synced).length;
+    final allResponses =
+        ref.watch(allResponsesProvider).valueOrNull ?? const [];
+    final syncedCount = allResponses
+        .where((r) => r.status == SyncStatus.synced)
+        .length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mi perfil')),
@@ -33,7 +37,10 @@ class ProfileScreen extends ConsumerWidget {
               beginOffset: const Offset(0, 0.1),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.xl,
+                  horizontal: AppSpacing.md,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                   color: theme.colorScheme.primary,
@@ -45,7 +52,10 @@ class ProfileScreen extends ConsumerWidget {
                     // on" the gradient instead of blending into it.
                     Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.surface),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.colorScheme.surface,
+                      ),
                       child: CircleAvatar(
                         radius: 44,
                         backgroundColor: theme.colorScheme.primaryContainer,
@@ -62,13 +72,19 @@ class ProfileScreen extends ConsumerWidget {
                     Text(
                       user?.name ?? 'Encuestador',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.onPrimary),
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       user?.email ?? '',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onPrimary.withValues(alpha: 0.85)),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onPrimary.withValues(
+                          alpha: 0.85,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -79,7 +95,10 @@ class ProfileScreen extends ConsumerWidget {
               index: 1,
               child: Card(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.lg,
+                    horizontal: AppSpacing.md,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -90,7 +109,11 @@ class ProfileScreen extends ConsumerWidget {
                           shape: BoxShape.circle,
                           color: theme.colorScheme.primaryContainer,
                         ),
-                        child: Icon(Icons.cloud_done_rounded, color: theme.colorScheme.onPrimaryContainer, size: 28),
+                        child: Icon(
+                          Icons.cloud_done_rounded,
+                          color: theme.colorScheme.onPrimaryContainer,
+                          size: 28,
+                        ),
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Column(
@@ -100,11 +123,15 @@ class ProfileScreen extends ConsumerWidget {
                             tween: IntTween(begin: 0, end: syncedCount),
                             duration: const Duration(milliseconds: 600),
                             curve: Curves.easeOut,
-                            builder: (context, value, _) =>
-                                Text('$value', style: theme.textTheme.headlineMedium),
+                            builder: (context, value, _) => Text(
+                              '$value',
+                              style: theme.textTheme.headlineMedium,
+                            ),
                           ),
                           Text(
-                            syncedCount == 1 ? 'Encuesta enviada' : 'Encuestas enviadas',
+                            syncedCount == 1
+                                ? 'Encuesta enviada'
+                                : 'Encuestas enviadas',
                             style: theme.textTheme.bodyMedium,
                           ),
                         ],
@@ -122,6 +149,19 @@ class ProfileScreen extends ConsumerWidget {
                 icon: Icons.logout_rounded,
                 variant: AppButtonVariant.secondary,
                 onPressed: () => _confirmLogout(context, ref),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xxl),
+            StaggeredFadeSlideIn(
+              index: 3,
+              child: Center(
+                child: Image.asset(
+                  BrandAssets.secretaria,
+                  height: 44,
+                  fit: BoxFit.contain,
+                  semanticLabel:
+                      'Secretaría Ejecutiva del Sistema Anticorrupción del Estado de Chiapas',
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -146,8 +186,14 @@ class ProfileScreen extends ConsumerWidget {
         title: const Text('Cerrar sesión'),
         content: const Text('¿Seguro que quieres cerrar tu sesión?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cerrar sesión')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cerrar sesión'),
+          ),
         ],
       ),
     );

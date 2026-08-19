@@ -109,24 +109,14 @@ class _FillBody extends StatelessWidget {
                           ),
                         ),
                       Text(question.text, style: Theme.of(context).textTheme.headlineSmall),
-                      if (question.helperText != null && question.helperText!.trim().isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          question.helperText!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        ),
-                      ],
                       const SizedBox(height: AppSpacing.lg),
                       QuestionField(
                         question: question,
                         value: state.answers[question.id],
-                        otherValue: state.otherValueFor(question),
+                        textAnswers: state.answers,
                         errorText: state.errorFor(question),
                         onChanged: (value) => controller.setAnswer(question.id, value),
-                        onOtherChanged: (text) => controller.setAnswer(question.otherAnswerKey, text),
+                        onTextAnswerChanged: controller.setAnswer,
                       ),
                     ],
                     const SizedBox(height: AppSpacing.xl),

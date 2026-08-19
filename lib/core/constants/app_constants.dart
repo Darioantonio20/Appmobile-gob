@@ -7,16 +7,19 @@
 /// flutter run --dart-define=API_BASE_URL=https://encuestas.chiapas.gob.mx/api
 /// ```
 ///
-/// When it isn't provided, we fall back to a placeholder. Swap this default
-/// (or always pass --dart-define in CI) once the real backend URL is known —
-/// nothing else in the app needs to change, because every network call goes
-/// through [ApiEndpoints] / [DioClient].
+/// The default below points at the Laravel dev backend on `localhost:8000`
+/// — via `10.0.2.2`, the Android emulator's alias for the host machine's
+/// `localhost` (a physical device or a real deployment needs an actual
+/// reachable URL, passed via --dart-define as above). Swap this default
+/// once there's a real staging/prod URL — nothing else in the app needs to
+/// change either way, because every network call goes through
+/// [ApiEndpoints] / [DioClient].
 class AppConstants {
   AppConstants._();
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://encuestas.chiapas.gob.mx/api',
+    defaultValue: 'http://10.0.2.2:8000/api',
   );
 
   static const Duration connectTimeout = Duration(seconds: 15);

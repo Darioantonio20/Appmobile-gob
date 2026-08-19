@@ -64,10 +64,11 @@ class SurveyDetailScreen extends ConsumerWidget {
                         runSpacing: AppSpacing.sm,
                         children: [
                           _InfoChip(icon: Icons.list_alt_rounded, label: '${survey.questionCount} preguntas'),
-                          _InfoChip(
-                            icon: Icons.update_rounded,
-                            label: 'Actualizada ${DateFormat('d/MM/y').format(survey.updatedAt)}',
-                          ),
+                          if (survey.validUntil != null)
+                            _InfoChip(
+                              icon: Icons.event_available_rounded,
+                              label: 'Vigente hasta ${DateFormat('d/MM/y').format(survey.validUntil!)}',
+                            ),
                         ],
                       ),
                     ],

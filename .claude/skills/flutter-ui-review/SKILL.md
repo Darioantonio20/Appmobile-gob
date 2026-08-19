@@ -1,6 +1,6 @@
 ---
 name: flutter-ui-review
-description: Design-system checklist and pitfall list for this app's Flutter UI (widgets, screens, theme, routing). Use this whenever writing or editing anything under lib/features/**/presentation/**, lib/core/theme/**, lib/core/widgets/**, lib/app.dart, or lib/core/router/**, or whenever the user asks for a new screen, a UI/UX pass, better colors/contrast, animations/transitions, responsive layout, or mentions the app looking "wrong"/"feo"/"no se ve bien" on some device. Also consult it before adding any Chip/Chip-like selectable control, before touching MediaQuery/text-scaling, or before adding a new route — this project has already hit real bugs in exactly those spots and this skill exists so they don't get reintroduced.
+description: Design-system checklist and pitfall list for this app's Flutter UI (widgets, screens, theme, routing). Use this whenever writing or editing anything under lib/features/**/presentation/**, lib/core/theme/**, lib/core/widgets/**, lib/app.dart, or lib/core/router/**, or whenever the user asks for a new screen, a UI/UX pass, better colors/contrast, animations/transitions, responsive layout, or mentions the app looking "wrong"/"feo"/"no se ve bien" on some device, or reports overflow/"se desborda"/clipped or cut-off content anywhere (forms, dropdowns, cards, rows of inputs). Also consult it before adding any Chip/Chip-like selectable control, any row of multiple side-by-side inputs/dropdowns, before touching MediaQuery/text-scaling, or before adding a new route — this project has already hit real bugs in exactly those spots and this skill exists so they don't get reintroduced.
 ---
 
 # Flutter UI review — Appmobile-gob
@@ -41,6 +41,40 @@ one width isn't done.
 - Before calling a UI change done: actually resize/preview at a phone width and a
   tablet/desktop width. A layout that only got eyeballed at one size is the most common
   way a "finished" screen turns out broken for part of the audience.
+
+## Overflow — the bug that actually happened here (calendar)
+
+`_DateField`'s three dropdowns (día/mes/año) were originally three `Expanded`
+children in one `Row` (flex 3/5/3). That fit "31" and "2026" fine, but not
+"Septiembre" (10 characters) squeezed into a `flex: 5` slice next to two other
+dropdowns on a real phone width — combined with this app's accessibility
+text-scale ceiling (1.4x, see the MediaQuery section below), the month label
+plus its own dropdown icon simply didn't fit, and it overflowed. It shipped,
+looked fine on a wide/emulator preview, and only showed up as a real bug on
+a narrower device.
+
+The fix — and the pattern for *any* row of side-by-side compact inputs
+(dropdowns, chips, short fields): don't assume normal-width content fits at
+1.4x scale next to siblings. If one item's content is meaningfully longer
+than the others (a month name vs. a day number), give it its own full-width
+row instead of a shared flex slice — see `_DateField` in
+`lib/features/surveys/presentation/widgets/question_field.dart` (Mes on its
+own row; Día/Año, both short, share a row below it).
+
+General checks before shipping a new multi-item row:
+- Compute (or just eyeball) whether the *longest* realistic label in each
+  slice fits at **1.4x** text scale, not just 1.0x — this app's own ceiling,
+  set in `lib/app.dart`. Content that's fine at default scale can still
+  overflow at the accessibility ceiling this app explicitly supports.
+- Prefer `Column` (stacked, one thing per row) over cramming variable-width
+  content sideways when one item is structurally wider than its neighbors
+  (a month name, a long option label, a long email).
+- `Wrap` is the middle ground when items are roughly similar-width and it's
+  fine for the layout to reflow to a new line — see `_ScaleField`'s number
+  row or `_MatrixField`'s stacked-card chips for that pattern.
+- A `RenderFlex overflowed by N pixels` warning (the yellow/black stripes)
+  is real regardless of whether it showed up in whatever you tested with —
+  don't dismiss it as an emulator/preview quirk.
 
 ## Contrast — the bug that actually happened here
 
@@ -168,9 +202,11 @@ copy note:
 
 1. Checked at a phone width **and** a tablet/desktop width.
 2. Checked in light **and** dark theme.
-3. Any new colored chip/tile/badge matches the contrast pattern above (background+border
+3. Any row of multiple side-by-side inputs/labels checked against the **1.4x** text-scale
+   ceiling, not just default scale — see the Overflow section above.
+4. Any new colored chip/tile/badge matches the contrast pattern above (background+border
    pairing, no one-off text color).
-4. Selection/state changes animate (~150-200ms, `Curves.easeOut`), don't snap.
-5. Any new route reuses `_fadeThrough` or `_slideUp` rather than a new transition style.
-6. Touch targets ≥ `AppSpacing.minTouchTarget`; icon choice matches the filled/outlined
+5. Selection/state changes animate (~150-200ms, `Curves.easeOut`), don't snap.
+6. Any new route reuses `_fadeThrough` or `_slideUp` rather than a new transition style.
+7. Touch targets ≥ `AppSpacing.minTouchTarget`; icon choice matches the filled/outlined
    convention above.

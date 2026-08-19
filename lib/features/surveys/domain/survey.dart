@@ -1,175 +1,286 @@
 import 'package:flutter/foundation.dart';
 
-/// Question types the fill-in form knows how to render. Add a new case here
-/// + a matching branch in `question_field.dart` to support a new type — an
-/// unrecognized value from the backend safely falls back to [shortText]
-/// instead of crashing (see [QuestionType.fromApi]).
-enum QuestionType {
-  shortText,
-  longText,
-  singleChoice,
-  multipleChoice,
-  scale,
-  yesNo,
-  date,
-
-  /// Likert matrix: a shared scale ([SurveyQuestion.options], used as the
-  /// column headers) answered once per [SurveyQuestion.matrixRows] row.
-  likertMatrix;
-
-  static QuestionType fromApi(String? raw) => switch (raw) {
-        'short_text' => QuestionType.shortText,
-        'long_text' => QuestionType.longText,
-        'single_choice' => QuestionType.singleChoice,
-        'multiple_choice' => QuestionType.multipleChoice,
-        'scale' => QuestionType.scale,
-        'yes_no' => QuestionType.yesNo,
-        'date' => QuestionType.date,
-        'likert_matrix' => QuestionType.likertMatrix,
-        _ => QuestionType.shortText,
-      };
-
-  String get apiValue => switch (this) {
-        QuestionType.shortText => 'short_text',
-        QuestionType.longText => 'long_text',
-        QuestionType.singleChoice => 'single_choice',
-        QuestionType.multipleChoice => 'multiple_choice',
-        QuestionType.scale => 'scale',
-        QuestionType.yesNo => 'yes_no',
-        QuestionType.date => 'date',
-        QuestionType.likertMatrix => 'likert_matrix',
-      };
-}
+/// Rendering type inferred for a question. The real backend doesn't send
+/// one of these directly — it sends a `type` code (`"TR-02"`..`"TR-08"` in
+/// every payload seen so far, with gaps at TR-01/TR-07) whose exact meaning
+/// isn't documented. [SurveyQuestion.fromJson] infers this from *structure*
+/// instead (has options? has sub_questions? has a numeric range?), which is
+/// unambiguous for every example seen:
+///
+/// | API `type` | shape observed                          | inferred as     |
+/// |---|---|---|
+/// | TR-03, TR-04 | `options: [...]`, no `sub_questions`  | [singleChoice]   |
+/// | TR-05        | no options, `min_value` set           | [numeric]        |
+/// | TR-02        | no options, no numeric hints           | [longText]       |
+/// | TR-08        | `options` (the scale) + `sub_questions` | [likertMatrix] |
+/// | TR-06        | only ever seen nested as a sub_question | folded into the parent's [SurveyQuestion.matrixRows], never rendered top-level |
+///
+/// No multiple-choice example was present in the sample payload — nothing
+/// currently maps to [multipleChoice]. If a backend type turns out to mean
+/// "select several", that's one more structural check to add here.
+///
+/// [date] is a similar best-effort guess: `TR-01` and `TR-07` are the only
+/// two codes never seen in a sample payload (every other TR-02..TR-08 code
+/// showed up with a clear structural role), so one of them is a plausible
+/// home for a date question — [SurveyQuestion._inferType] maps either to
+/// [date] when the question otherwise looks like plain text (no options, no
+/// numeric hint). If that guess is wrong, confirm the real code with the
+/// backend and it's a one-line fix.
+enum QuestionType { singleChoice, multipleChoice, numeric, shortText, longText, likertMatrix, date }
 
 @immutable
 class QuestionOption {
-  const QuestionOption({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  factory QuestionOption.fromJson(Map<String, dynamic> json) => QuestionOption(
-        value: json['value'].toString(),
-        label: json['label']?.toString() ?? json['value'].toString(),
-      );
-
-  Map<String, dynamic> toJson() => {'value': value, 'label': label};
-}
-
-/// One row/reactivo of a [QuestionType.likertMatrix] question.
-@immutable
-class MatrixRow {
-  const MatrixRow({required this.id, required this.text});
+  const QuestionOption({
+    required this.id,
+    required this.label,
+    this.isCorrect = false,
+    this.weight = 0,
+    this.requiresText = false,
+    this.textPlaceholder,
+  });
 
   final String id;
-  final String text;
+  final String label;
 
-  factory MatrixRow.fromJson(Map<String, dynamic> json) =>
-      MatrixRow(id: json['id'].toString(), text: json['text'] as String? ?? '');
+  /// Scoring metadata from the backend — the app never acts on these
+  /// itself (no client-side scoring), just carries them.
+  final bool isCorrect;
+  final int weight;
 
-  Map<String, dynamic> toJson() => {'id': id, 'text': text};
+  /// When true, selecting this option reveals a free-text field (e.g. an
+  /// "Otro, especifique" choice) whose answer is required alongside it.
+  /// See [SurveyQuestion.textAnswerKeyFor].
+  final bool requiresText;
+  final String? textPlaceholder;
+
+  factory QuestionOption.fromJson(Map<String, dynamic> json) => QuestionOption(
+        id: json['option_id'].toString(),
+        label: json['label'] as String? ?? '',
+        isCorrect: json['is_correct'] as bool? ?? false,
+        weight: (json['weight'] as num?)?.toInt() ?? 0,
+        requiresText: json['requires_text'] as bool? ?? false,
+        textPlaceholder: json['text_placeholder'] as String?,
+      );
+
+  /// Mirrors the API's own field names so this round-trips through
+  /// [QuestionOption.fromJson] unchanged — used only to cache a fetched
+  /// survey to SQLite, never sent back to the backend.
+  Map<String, dynamic> toJson() => {
+        'option_id': id,
+        'label': label,
+        'is_correct': isCorrect,
+        'weight': weight,
+        'requires_text': requiresText,
+        'text_placeholder': textPlaceholder,
+      };
+}
+
+/// "If the user picked [conditionOptionId] on this question, jump straight
+/// to [targetQuestionId]" — server-authored skip logic. See
+/// `SurveyFillController` for how this is applied: because this app's fill
+/// flow shows a whole section at a time (not one question at a time), a
+/// firing jump moves the flow to whichever *section* contains the target
+/// question, skipping any sections in between, rather than hiding
+/// individual questions within a section.
+@immutable
+class LogicJump {
+  const LogicJump({required this.conditionOptionId, required this.targetQuestionId, this.description});
+
+  final String conditionOptionId;
+  final String targetQuestionId;
+  final String? description;
+
+  factory LogicJump.fromJson(Map<String, dynamic> json) => LogicJump(
+        conditionOptionId: json['condition_option_id'].toString(),
+        targetQuestionId: json['target_question_id'].toString(),
+        description: json['description'] as String?,
+      );
+
+  Map<String, dynamic> toJson() =>
+      {'condition_option_id': conditionOptionId, 'target_question_id': targetQuestionId, 'description': description};
 }
 
 @immutable
 class SurveyQuestion {
   const SurveyQuestion({
     required this.id,
-    required this.text,
     required this.type,
-    this.helperText,
-    this.isRequired = true,
+    required this.text,
+    this.parentId,
+    this.apiTypeCode = '',
+    this.isRequired = false,
+    this.order = 0,
+    this.minLength,
+    this.maxLength,
+    this.minValue,
+    this.maxValue,
+    this.maxDecimals,
+    this.requiresText = false,
+    this.textPlaceholder,
     this.options = const [],
-    this.scaleMin = 1,
-    this.scaleMax = 5,
-    this.allowOther = false,
+    this.logicJumps = const [],
     this.matrixRows = const [],
   });
 
   final String id;
-  final String text;
-  final String? helperText;
-  final QuestionType type;
-  final bool isRequired;
+  final String? parentId;
 
-  /// Used by [QuestionType.singleChoice] / [QuestionType.multipleChoice]
-  /// (the choices) and [QuestionType.likertMatrix] (the shared scale /
-  /// column headers).
+  /// Raw backend code (`"TR-03"`, …) — kept for debugging/telemetry, not
+  /// used for rendering decisions (see [type]).
+  final String apiTypeCode;
+  final QuestionType type;
+
+  final String text;
+  final bool isRequired;
+  final int order;
+
+  /// Text-answer constraints ([QuestionType.shortText]/[longText]).
+  final int? minLength;
+  final int? maxLength;
+
+  /// Numeric-answer constraints ([QuestionType.numeric]).
+  final num? minValue;
+  final num? maxValue;
+  final int? maxDecimals;
+
+  /// Question-level "requires an accompanying free-text answer" — distinct
+  /// from (and rarer than) [QuestionOption.requiresText], which is per
+  /// option. Uses the same answer-key convention; see [textAnswerKeyFor].
+  final bool requiresText;
+  final String? textPlaceholder;
+
+  /// [QuestionType.singleChoice]/[multipleChoice] (the choices) and
+  /// [QuestionType.likertMatrix] (the shared scale / column headers).
   final List<QuestionOption> options;
 
-  /// Used by [QuestionType.scale].
-  final num scaleMin;
-  final num scaleMax;
+  final List<LogicJump> logicJumps;
 
-  /// Single/multiple choice only: appends an "Otra (especifica)" choice
-  /// that reveals a free-text field when selected. The free-text value is
-  /// stored under a derived answer key — see `otherAnswerKey`.
-  final bool allowOther;
+  /// [QuestionType.likertMatrix] only: one row per `sub_question` the
+  /// backend nested under this question. Each row is answered with one of
+  /// [options]' ids — only `.id`/`.text` are meaningful for a row; its own
+  /// `options`/`type`/etc. are unused.
+  final List<SurveyQuestion> matrixRows;
 
-  /// Used by [QuestionType.likertMatrix]: the rows/reactivos, answered one
-  /// [options] value each.
-  final List<MatrixRow> matrixRows;
+  /// Answers map key for the free-text field tied to [option] (or to this
+  /// question itself, when [option] is null and [requiresText] is set).
+  String textAnswerKeyFor([QuestionOption? option]) => option == null ? '${id}_text' : '${id}_opt_${option.id}';
 
-  /// Reserved option value the UI uses for the synthetic "Otra" choice.
-  static const String otherOptionValue = '__other__';
+  factory SurveyQuestion.fromJson(Map<String, dynamic> json) {
+    final options =
+        (json['options'] as List<dynamic>? ?? const []).map((o) => QuestionOption.fromJson(o as Map<String, dynamic>)).toList();
+    final subQuestionsJson = json['sub_questions'] as List<dynamic>? ?? const [];
+    final hasSubQuestions = subQuestionsJson.isNotEmpty;
+    final rawType = json['type'] as String?;
 
-  /// Answers map key used to store the free-text value for "Otra".
-  String get otherAnswerKey => '${id}_other';
+    return SurveyQuestion(
+      id: json['question_id'].toString(),
+      parentId: json['parent_id']?.toString(),
+      apiTypeCode: rawType ?? '',
+      type: _inferType(json, hasOptions: options.isNotEmpty, hasSubQuestions: hasSubQuestions),
+      text: json['question_text'] as String? ?? '',
+      isRequired: json['is_required'] as bool? ?? false,
+      order: (json['order'] as num?)?.toInt() ?? 0,
+      minLength: (json['min_length'] as num?)?.toInt(),
+      maxLength: (json['max_length'] as num?)?.toInt(),
+      minValue: _parseNum(json['min_value']),
+      maxValue: _parseNum(json['max_value']),
+      maxDecimals: (json['max_decimals'] as num?)?.toInt(),
+      requiresText: json['requires_text'] as bool? ?? false,
+      textPlaceholder: json['text_placeholder'] as String?,
+      options: options,
+      logicJumps:
+          (json['logic_jumps'] as List<dynamic>? ?? const []).map((j) => LogicJump.fromJson(j as Map<String, dynamic>)).toList(),
+      // Only folded in when this question actually has the shared scale to
+      // answer them against — a question with sub_questions but no options
+      // of its own doesn't match the one matrix pattern seen so far, so it
+      // falls back to rendering as plain text rather than a broken matrix.
+      matrixRows: hasSubQuestions && options.isNotEmpty
+          ? subQuestionsJson.map((q) => SurveyQuestion.fromJson(q as Map<String, dynamic>)).toList()
+          : const [],
+    );
+  }
 
-  factory SurveyQuestion.fromJson(Map<String, dynamic> json) => SurveyQuestion(
-        id: json['id'].toString(),
-        text: json['text'] as String? ?? '',
-        helperText: json['helperText'] as String?,
-        type: QuestionType.fromApi(json['type'] as String?),
-        isRequired: json['required'] as bool? ?? true,
-        options: (json['options'] as List<dynamic>? ?? const [])
-            .map((o) => QuestionOption.fromJson(o as Map<String, dynamic>))
-            .toList(),
-        scaleMin: (json['scaleMin'] as num?) ?? 1,
-        scaleMax: (json['scaleMax'] as num?) ?? 5,
-        allowOther: json['allowOther'] as bool? ?? false,
-        matrixRows: (json['matrixRows'] as List<dynamic>? ?? const [])
-            .map((r) => MatrixRow.fromJson(r as Map<String, dynamic>))
-            .toList(),
-      );
+  static num? _parseNum(Object? raw) {
+    if (raw == null) return null;
+    if (raw is num) return raw;
+    return num.tryParse(raw.toString());
+  }
 
+  /// Mirrors the API's own field names so this round-trips through
+  /// [SurveyQuestion.fromJson] unchanged — used only to cache a fetched
+  /// survey to SQLite, never sent back to the backend. [type] itself isn't
+  /// written back out — [apiTypeCode] is, and re-parsing re-derives [type]
+  /// from structure exactly as it did the first time.
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'text': text,
-        'helperText': helperText,
-        'type': type.apiValue,
-        'required': isRequired,
+        'question_id': id,
+        'parent_id': parentId,
+        'type': apiTypeCode,
+        'question_text': text,
+        'is_required': isRequired,
+        'order': order,
+        'min_length': minLength,
+        'max_length': maxLength,
+        'min_value': minValue,
+        'max_value': maxValue,
+        'max_decimals': maxDecimals,
+        'requires_text': requiresText,
+        'text_placeholder': textPlaceholder,
         'options': options.map((o) => o.toJson()).toList(),
-        'scaleMin': scaleMin,
-        'scaleMax': scaleMax,
-        'allowOther': allowOther,
-        'matrixRows': matrixRows.map((r) => r.toJson()).toList(),
+        'logic_jumps': logicJumps.map((j) => j.toJson()).toList(),
+        'sub_questions': matrixRows.map((r) => r.toJson()).toList(),
       };
 
-  /// Domain rule for "is this a valid answer to this question" — the single
-  /// source of truth used by both the inline per-question validation in the
-  /// fill form and the final guard before submit, so they can never
-  /// disagree with each other.
-  ///
-  /// [otherValue] is only consulted when [allowOther] is set and the "Otra"
-  /// choice was picked.
-  String? validate(Object? value, {String? otherValue}) {
-    if (!isRequired) return null;
+  static QuestionType _inferType(Map<String, dynamic> json, {required bool hasOptions, required bool hasSubQuestions}) {
+    if (hasSubQuestions && hasOptions) return QuestionType.likertMatrix;
+    if (hasOptions) return QuestionType.singleChoice;
+    final hasNumericHint = json['min_value'] != null || json['max_value'] != null || json['max_decimals'] != null;
+    if (hasNumericHint) return QuestionType.numeric;
+    final maxLength = (json['max_length'] as num?)?.toInt();
+    if (maxLength != null && maxLength <= 150) return QuestionType.shortText;
+    return QuestionType.longText;
+  }
 
+  /// Domain rule for "is this a valid answer to this question" — the single
+  /// source of truth used by both inline validation in the fill form and
+  /// the final guard before submit, so they can never disagree.
+  ///
+  /// [textAnswers] holds any accompanying free-text values, keyed by
+  /// [textAnswerKeyFor] — needed here because whether one is *required*
+  /// depends on which option was picked.
+  String? validate(Object? value, {Map<String, Object?> textAnswers = const {}}) {
     if (type == QuestionType.likertMatrix) {
+      if (!isRequired) return null;
       final answers = value is Map ? value : const {};
       final unanswered = matrixRows.any((row) => (answers[row.id] as String?)?.isEmpty ?? true);
       return unanswered ? 'Responde todas las filas.' : null;
     }
 
-    final isEmpty = value == null ||
-        (value is String && value.trim().isEmpty) ||
-        (value is Iterable && value.isEmpty);
-    if (isEmpty) return 'Esta pregunta es obligatoria.';
+    final isEmpty = value == null || (value is String && value.trim().isEmpty) || (value is Iterable && value.isEmpty);
+    if (isRequired && isEmpty) return 'Esta pregunta es obligatoria.';
+    if (isEmpty) return null; // optional and empty — nothing further to check
 
-    if (allowOther) {
-      final otherSelected = value == SurveyQuestion.otherOptionValue ||
-          (value is Iterable && value.contains(SurveyQuestion.otherOptionValue));
-      if (otherSelected && (otherValue == null || otherValue.trim().isEmpty)) {
+    if (type == QuestionType.numeric) {
+      final numericValue = value is num ? value : num.tryParse(value.toString());
+      if (numericValue == null) return 'Ingresa un número válido.';
+      if (minValue != null && numericValue < minValue!) return 'El valor mínimo es $minValue.';
+      if (maxValue != null && numericValue > maxValue!) return 'El valor máximo es $maxValue.';
+    }
+
+    if ((type == QuestionType.shortText || type == QuestionType.longText) && value is String) {
+      if (minLength != null && value.trim().length < minLength!) return 'Mínimo $minLength caracteres.';
+      if (maxLength != null && value.length > maxLength!) return 'Máximo $maxLength caracteres.';
+    }
+
+    // Question-level "requires text" (rare — most of the time it's
+    // per-option, checked next).
+    if (requiresText && ((textAnswers[textAnswerKeyFor()] as String?)?.trim().isEmpty ?? true)) {
+      return 'Especifica tu respuesta.';
+    }
+
+    final selectedIds = value is Iterable ? value.cast<String>() : [value.toString()];
+    for (final option in options) {
+      if (!option.requiresText || !selectedIds.contains(option.id)) continue;
+      if ((textAnswers[textAnswerKeyFor(option)] as String?)?.trim().isEmpty ?? true) {
         return 'Especifica tu respuesta.';
       }
     }
@@ -178,32 +289,35 @@ class SurveyQuestion {
   }
 }
 
-/// A group of related questions within a [Survey], shown together as one
-/// step of the fill-in flow ("Sección X de Y").
 @immutable
 class SurveySection {
-  const SurveySection({required this.id, required this.title, this.description, required this.questions});
+  const SurveySection({required this.id, required this.title, this.order = 0, this.questions = const []});
 
   final String id;
   final String title;
-  final String? description;
+  final int order;
   final List<SurveyQuestion> questions;
 
-  factory SurveySection.fromJson(Map<String, dynamic> json) => SurveySection(
-        id: json['id'].toString(),
-        title: json['title'] as String? ?? '',
-        description: json['description'] as String?,
-        questions: (json['questions'] as List<dynamic>? ?? const [])
-            .map((q) => SurveyQuestion.fromJson(q as Map<String, dynamic>))
-            .toList(),
-      );
+  factory SurveySection.fromJson(Map<String, dynamic> json) {
+    final questions = (json['questions'] as List<dynamic>? ?? const [])
+        .map((q) => SurveyQuestion.fromJson(q as Map<String, dynamic>))
+        // Sub_questions only ever arrive nested inside their parent's own
+        // `sub_questions` field, never duplicated into this flat list too —
+        // this filter is a defensive no-op against that, not a fix for
+        // something actually observed.
+        .where((q) => q.parentId == null)
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    return SurveySection(
+      id: json['section_id'].toString(),
+      title: json['title'] as String? ?? '',
+      order: (json['order'] as num?)?.toInt() ?? 0,
+      questions: questions,
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'description': description,
-        'questions': questions.map((q) => q.toJson()).toList(),
-      };
+  Map<String, dynamic> toJson() =>
+      {'section_id': id, 'title': title, 'order': order, 'questions': questions.map((q) => q.toJson()).toList()};
 }
 
 @immutable
@@ -211,54 +325,67 @@ class Survey {
   const Survey({
     required this.id,
     required this.title,
-    required this.updatedAt,
-    required this.sections,
     this.description,
+    this.validFrom,
+    this.validUntil,
+    this.sections = const [],
   });
 
   final String id;
   final String title;
   final String? description;
-  final DateTime updatedAt;
+
+  /// Assignment/availability window from the backend — informational only
+  /// today. `GET /surveys` already only returns surveys currently assigned
+  /// to the encuestador, so the app doesn't additionally gate on these
+  /// client-side (and both are `null` in every example seen).
+  final DateTime? validFrom;
+  final DateTime? validUntil;
+
+  /// Populated from `GET /surveys/{id}`; empty for a list-item-only
+  /// [Survey] (`GET /surveys` doesn't include sections).
   final List<SurveySection> sections;
 
-  /// Every question across every section, in order — used where the
+  /// Every top-level question across every section, in order — used where
   /// section grouping doesn't matter (progress calculation, flat
-  /// validation sweeps).
+  /// validation sweeps). Matrix rows are intentionally excluded: they're
+  /// answered as part of their parent, not independently.
   List<SurveyQuestion> get allQuestions => sections.expand((s) => s.questions).toList(growable: false);
 
   int get questionCount => sections.fold(0, (sum, s) => sum + s.questions.length);
 
-  factory Survey.fromJson(Map<String, dynamic> json) {
-    final List<SurveySection> sections;
-    if (json['sections'] is List) {
-      sections = (json['sections'] as List)
-          .map((s) => SurveySection.fromJson(s as Map<String, dynamic>))
-          .toList();
-    } else {
-      // Lenient fallback for a backend that sends a flat `questions` array
-      // instead of `sections`: treat the whole survey as one implicit,
-      // untitled section rather than rejecting the payload.
-      final questions = (json['questions'] as List<dynamic>? ?? const [])
-          .map((q) => SurveyQuestion.fromJson(q as Map<String, dynamic>))
-          .toList();
-      sections = questions.isEmpty ? const [] : [SurveySection(id: 'default', title: '', questions: questions)];
+  /// Index of the section containing [questionId] (searching top-level
+  /// questions only), or `null` if not found — used to resolve a
+  /// [LogicJump]'s target into "which section do we jump to".
+  int? sectionIndexForQuestion(String questionId) {
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].questions.any((q) => q.id == questionId)) return i;
     }
+    return null;
+  }
 
+  factory Survey.fromJson(Map<String, dynamic> json) {
+    final sectionsJson = json['sections'] as List<dynamic>?;
+    final sections = (sectionsJson ?? const []).map((s) => SurveySection.fromJson(s as Map<String, dynamic>)).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
     return Survey(
-      id: json['id'].toString(),
+      id: json['survey_id'].toString(),
       title: json['title'] as String? ?? 'Encuesta',
       description: json['description'] as String?,
-      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      validFrom: _parseDate(json['valid_from']),
+      validUntil: _parseDate(json['valid_until']),
       sections: sections,
     );
   }
 
+  static DateTime? _parseDate(Object? raw) => raw == null ? null : DateTime.tryParse(raw.toString());
+
   Map<String, dynamic> toJson() => {
-        'id': id,
+        'survey_id': id,
         'title': title,
         'description': description,
-        'updatedAt': updatedAt.toIso8601String(),
+        'valid_from': validFrom?.toIso8601String(),
+        'valid_until': validUntil?.toIso8601String(),
         'sections': sections.map((s) => s.toJson()).toList(),
       };
 }

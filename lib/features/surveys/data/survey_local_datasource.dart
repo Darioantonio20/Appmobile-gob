@@ -31,6 +31,8 @@ class SurveyLocalDataSource {
   }
 
   Future<void> cacheSurveys(List<Survey> surveys) {
+    // The API doesn't send a last-modified timestamp for a survey — `now`
+    // doubles for both the table's `updatedAt` and `fetchedAt` columns.
     final now = DateTime.now();
     return _db.replaceAllSurveys(
       surveys
@@ -39,7 +41,9 @@ class SurveyLocalDataSource {
                 title: s.title,
                 description: Value(s.description),
                 sectionsJson: jsonEncode(s.sections.map((sec) => sec.toJson()).toList()),
-                updatedAt: s.updatedAt,
+                validFrom: Value(s.validFrom),
+                validUntil: Value(s.validUntil),
+                updatedAt: now,
                 fetchedAt: now,
               ))
           .toList(),
@@ -52,7 +56,8 @@ class SurveyLocalDataSource {
       id: row.id,
       title: row.title,
       description: row.description,
-      updatedAt: row.updatedAt,
+      validFrom: row.validFrom,
+      validUntil: row.validUntil,
       sections: sectionsRaw.map((s) => SurveySection.fromJson(s as Map<String, dynamic>)).toList(),
     );
   }

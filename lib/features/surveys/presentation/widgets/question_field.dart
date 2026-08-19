@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
@@ -18,8 +19,8 @@ class QuestionField extends StatelessWidget {
     required this.question,
     required this.value,
     required this.onChanged,
-    this.otherValue,
-    this.onOtherChanged,
+    this.textAnswers = const {},
+    this.onTextAnswerChanged,
     this.errorText,
   });
 
@@ -27,24 +28,29 @@ class QuestionField extends StatelessWidget {
   final Object? value;
   final ValueChanged<Object?> onChanged;
 
-  /// Free-text value for the "Otra (especifica)" choice — only relevant
-  /// when [SurveyQuestion.allowOther] is set.
-  final String? otherValue;
-  final ValueChanged<String>? onOtherChanged;
+  /// Free-text answers keyed by [SurveyQuestion.textAnswerKeyFor] — one per
+  /// currently-selected option with `requiresText`, plus the
+  /// question-level one when [SurveyQuestion.requiresText] is set.
+  final Map<String, Object?> textAnswers;
+  final void Function(String key, String value)? onTextAnswerChanged;
 
   final String? errorText;
 
-  bool get _otherSelected {
-    if (!question.allowOther) return false;
-    return value == SurveyQuestion.otherOptionValue ||
-        (value is Iterable && (value as Iterable).contains(SurveyQuestion.otherOptionValue));
+  List<String> get _selectedIds {
+    if (value == null) return const [];
+    if (value is Iterable) return (value as Iterable).map((v) => v.toString()).toList();
+    return [value.toString()];
   }
+
+  Iterable<QuestionOption> get _optionsNeedingText =>
+      question.options.where((o) => o.requiresText && _selectedIds.contains(o.id));
 
   @override
   Widget build(BuildContext context) {
     final Widget field = switch (question.type) {
       QuestionType.shortText => _TextAnswerField(value: value as String?, onChanged: onChanged, maxLines: 1),
       QuestionType.longText => _TextAnswerField(value: value as String?, onChanged: onChanged, maxLines: 6),
+      QuestionType.numeric => _NumericField(question: question, value: value, onChanged: onChanged),
       QuestionType.singleChoice =>
         _SingleChoiceField(question: question, value: value as String?, onChanged: onChanged),
       QuestionType.multipleChoice => _MultipleChoiceField(
@@ -52,8 +58,6 @@ class QuestionField extends StatelessWidget {
           value: (value as List?)?.cast<String>() ?? const [],
           onChanged: onChanged,
         ),
-      QuestionType.scale => _ScaleField(question: question, value: value as num?, onChanged: onChanged),
-      QuestionType.yesNo => _YesNoField(value: value as bool?, onChanged: onChanged),
       QuestionType.date => _DateField(value: value as String?, onChanged: onChanged),
       QuestionType.likertMatrix => _MatrixField(
           question: question,
@@ -66,18 +70,34 @@ class QuestionField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         field,
-        if (_otherSelected) ...[
-          const SizedBox(height: AppSpacing.sm),
-          // Reuses the same stateful text field as short/long-text answers
-          // — a plain TextField rebuilt with `TextEditingController(text:
-          // otherValue)` on every keystroke would fight its own cursor.
-          _TextAnswerField(
-            value: otherValue,
-            maxLines: 1,
-            hint: 'Especifica tu respuesta',
-            onChanged: (v) => onOtherChanged?.call(v as String? ?? ''),
+        for (final option in _optionsNeedingText)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            // Reuses the same stateful text field as short/long-text answers
+            // — a plain TextField rebuilt fresh on every keystroke would
+            // fight its own cursor. Keyed per-option: more than one
+            // requires-text option can be selected at once (multiple
+            // choice), and each needs its own independent controller
+            // rather than Flutter reusing one by list position.
+            child: _TextAnswerField(
+              key: ValueKey(question.textAnswerKeyFor(option)),
+              value: textAnswers[question.textAnswerKeyFor(option)] as String?,
+              maxLines: 1,
+              hint: option.textPlaceholder ?? 'Especifica tu respuesta',
+              onChanged: (v) => onTextAnswerChanged?.call(question.textAnswerKeyFor(option), v as String? ?? ''),
+            ),
           ),
-        ],
+        if (question.requiresText)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: _TextAnswerField(
+              key: ValueKey(question.textAnswerKeyFor()),
+              value: textAnswers[question.textAnswerKeyFor()] as String?,
+              maxLines: 1,
+              hint: question.textPlaceholder ?? 'Especifica tu respuesta',
+              onChanged: (v) => onTextAnswerChanged?.call(question.textAnswerKeyFor(), v as String? ?? ''),
+            ),
+          ),
         if (errorText != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -97,6 +117,7 @@ class QuestionField extends StatelessWidget {
 
 class _TextAnswerField extends StatefulWidget {
   const _TextAnswerField({
+    super.key,
     required this.value,
     required this.onChanged,
     required this.maxLines,
@@ -146,12 +167,63 @@ class _TextAnswerFieldState extends State<_TextAnswerField> {
   }
 }
 
-/// Choices for single/multiple choice fields, with an "Otra (especifica)"
-/// tile automatically appended when [SurveyQuestion.allowOther] is set —
-/// backends don't need to remember to add it themselves.
-List<QuestionOption> _optionsWithOther(SurveyQuestion question) {
-  if (!question.allowOther) return question.options;
-  return [...question.options, const QuestionOption(value: SurveyQuestion.otherOptionValue, label: 'Otra (especifica)')];
+/// Plain-number answer, respecting [SurveyQuestion.minValue]/[maxValue]/
+/// [maxDecimals] as an input filter (final range check still happens in
+/// [SurveyQuestion.validate] — this just steers input toward a valid shape).
+class _NumericField extends StatefulWidget {
+  const _NumericField({required this.question, required this.value, required this.onChanged});
+
+  final SurveyQuestion question;
+  final Object? value;
+  final ValueChanged<Object?> onChanged;
+
+  @override
+  State<_NumericField> createState() => _NumericFieldState();
+}
+
+class _NumericFieldState extends State<_NumericField> {
+  late final TextEditingController _controller = TextEditingController(text: widget.value?.toString() ?? '');
+
+  @override
+  void didUpdateWidget(covariant _NumericField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final text = widget.value?.toString() ?? '';
+    if (text != _controller.text && widget.value != oldWidget.value) {
+      _controller.text = text;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  static String _fmt(num n) => n == n.roundToDouble() ? n.toInt().toString() : n.toString();
+
+  @override
+  Widget build(BuildContext context) {
+    final q = widget.question;
+    final allowDecimals = (q.maxDecimals ?? 0) > 0;
+
+    String? hint;
+    if (q.minValue != null && q.maxValue != null) {
+      hint = 'Entre ${_fmt(q.minValue!)} y ${_fmt(q.maxValue!)}';
+    } else if (q.minValue != null) {
+      hint = 'Mínimo ${_fmt(q.minValue!)}';
+    } else if (q.maxValue != null) {
+      hint = 'Máximo ${_fmt(q.maxValue!)}';
+    }
+
+    return TextField(
+      controller: _controller,
+      keyboardType: TextInputType.numberWithOptions(decimal: allowDecimals),
+      inputFormatters: [FilteringTextInputFormatter.allow(allowDecimals ? RegExp(r'[0-9.]') : RegExp(r'[0-9]'))],
+      style: Theme.of(context).textTheme.bodyLarge,
+      decoration: InputDecoration(hintText: hint ?? 'Escribe un número'),
+      onChanged: (text) => widget.onChanged(text.isEmpty ? null : num.tryParse(text)),
+    );
+  }
 }
 
 class _SingleChoiceField extends StatelessWidget {
@@ -165,13 +237,13 @@ class _SingleChoiceField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final option in _optionsWithOther(question))
+        for (final option in question.options)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _ChoiceTile(
               label: option.label,
-              selected: value == option.value,
-              onTap: () => onChanged(option.value),
+              selected: value == option.id,
+              onTap: () => onChanged(option.id),
               leading: Icons.radio_button_unchecked,
               leadingSelected: Icons.radio_button_checked,
             ),
@@ -192,20 +264,20 @@ class _MultipleChoiceField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final option in _optionsWithOther(question))
+        for (final option in question.options)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _ChoiceTile(
               label: option.label,
-              selected: value.contains(option.value),
+              selected: value.contains(option.id),
               leading: Icons.check_box_outline_blank,
               leadingSelected: Icons.check_box,
               onTap: () {
                 final next = List<String>.from(value);
-                if (next.contains(option.value)) {
-                  next.remove(option.value);
+                if (next.contains(option.id)) {
+                  next.remove(option.id);
                 } else {
-                  next.add(option.value);
+                  next.add(option.id);
                 }
                 onChanged(next);
               },
@@ -342,118 +414,6 @@ class _MatrixOptionChip extends StatelessWidget {
   }
 }
 
-class _ScaleField extends StatelessWidget {
-  const _ScaleField({required this.question, required this.value, required this.onChanged});
-
-  final SurveyQuestion question;
-  final num? value;
-  final ValueChanged<Object?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final min = question.scaleMin.toInt();
-    final max = question.scaleMax.toInt();
-
-    return Column(
-      children: [
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          alignment: WrapAlignment.center,
-          children: [
-            for (var i = min; i <= max; i++)
-              _ScaleButton(number: i, selected: value?.toInt() == i, onTap: () => onChanged(i)),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('$min = Muy en desacuerdo', style: theme.textTheme.bodySmall),
-            Text('$max = Muy de acuerdo', style: theme.textTheme.bodySmall),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ScaleButton extends StatelessWidget {
-  const _ScaleButton({required this.number, required this.selected, required this.onTap});
-
-  final int number;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          width: AppSpacing.minTouchTarget,
-          height: AppSpacing.minTouchTarget,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: selected ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest,
-          ),
-          child: Center(
-            child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 180),
-              style: theme.textTheme.titleMedium!.copyWith(
-                color: selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w700,
-              ),
-              child: Text('$number'),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _YesNoField extends StatelessWidget {
-  const _YesNoField({required this.value, required this.onChanged});
-
-  final bool? value;
-  final ValueChanged<Object?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _ChoiceTile(
-            label: 'Sí',
-            selected: value == true,
-            leading: Icons.radio_button_unchecked,
-            leadingSelected: Icons.check_circle,
-            onTap: () => onChanged(true),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _ChoiceTile(
-            label: 'No',
-            selected: value == false,
-            leading: Icons.radio_button_unchecked,
-            leadingSelected: Icons.cancel,
-            onTap: () => onChanged(false),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Three plain dropdowns (día/mes/año) instead of [showDatePicker].
 ///
 /// Deliberately not Flutter's built-in Material date picker: it computes its
@@ -504,37 +464,42 @@ class _DateField extends StatelessWidget {
       onChanged(DateTime(y, m, d).toIso8601String());
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Month gets its own full-width row rather than sharing one with Día/Año:
+    // "Septiembre" at this app's accessibility text-scale ceiling (1.4x) does
+    // not fit next to two other dropdowns on a real phone width — that
+    // three-across layout is what actually overflowed. Día/Año are both
+    // short (max 2/4 digits) and comfortably share a row on their own.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          flex: 3,
-          child: _DatePartDropdown(
-            label: 'Día',
-            value: day,
-            items: [for (var d = 1; d <= daysInSelectedMonth; d++) (d, '$d')],
-            onChanged: (d) => update(newDay: d),
-          ),
+        _DatePartDropdown(
+          label: 'Mes',
+          value: month,
+          items: [for (var m = 1; m <= 12; m++) (m, _months[m - 1])],
+          onChanged: (m) => update(newMonth: m),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          flex: 5,
-          child: _DatePartDropdown(
-            label: 'Mes',
-            value: month,
-            items: [for (var m = 1; m <= 12; m++) (m, _months[m - 1])],
-            onChanged: (m) => update(newMonth: m),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          flex: 3,
-          child: _DatePartDropdown(
-            label: 'Año',
-            value: year,
-            items: [for (final y in years) (y, '$y')],
-            onChanged: (y) => update(newYear: y),
-          ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _DatePartDropdown(
+                label: 'Día',
+                value: day,
+                items: [for (var d = 1; d <= daysInSelectedMonth; d++) (d, '$d')],
+                onChanged: (d) => update(newDay: d),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _DatePartDropdown(
+                label: 'Año',
+                value: year,
+                items: [for (final y in years) (y, '$y')],
+                onChanged: (y) => update(newYear: y),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -552,7 +517,7 @@ class _DatePartDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<int>(
-      initialValue: value,
+      value: value,
       isExpanded: true,
       hint: const Text('—'),
       decoration: InputDecoration(
@@ -581,8 +546,8 @@ class _MatrixField extends StatelessWidget {
   final Map<String, String> value;
   final ValueChanged<Object?> onChanged;
 
-  void _select(String rowId, String optionValue) {
-    onChanged({...value, rowId: optionValue});
+  void _select(String rowId, String optionId) {
+    onChanged({...value, rowId: optionId});
   }
 
   @override
@@ -614,8 +579,8 @@ class _MatrixField extends StatelessWidget {
                     for (final option in question.options)
                       _MatrixOptionChip(
                         label: option.label,
-                        selected: value[row.id] == option.value,
-                        onTap: () => _select(row.id, option.value),
+                        selected: value[row.id] == option.id,
+                        onTap: () => _select(row.id, option.id),
                       ),
                   ],
                 ),
@@ -629,8 +594,12 @@ class _MatrixField extends StatelessWidget {
   Widget _buildTable(BuildContext context) {
     final theme = Theme.of(context);
     return Table(
-      border: TableBorder.all(color: theme.colorScheme.outlineVariant, borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
-      columnWidths: {0: const FlexColumnWidth(2), for (var i = 0; i < question.options.length; i++) i + 1: const FlexColumnWidth(1)},
+      border:
+          TableBorder.all(color: theme.colorScheme.outlineVariant, borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
+      columnWidths: {
+        0: const FlexColumnWidth(2),
+        for (var i = 0; i < question.options.length; i++) i + 1: const FlexColumnWidth(1),
+      },
       children: [
         TableRow(
           decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerHighest),
@@ -655,7 +624,7 @@ class _MatrixField extends StatelessWidget {
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   child: Center(
                     child: Radio<String>(
-                      value: option.value,
+                      value: option.id,
                       groupValue: value[row.id],
                       onChanged: (v) => _select(row.id, v!),
                     ),
