@@ -27,7 +27,9 @@ class ProfileScreen extends ConsumerWidget {
         .length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi perfil')),
+      appBar: AppBar(
+        title: Text('Mi perfil', style: TextStyle(color: theme.colorScheme.secondary)),
+      ),
       body: ResponsiveCenter(
         child: ListView(
           children: [
@@ -43,13 +45,16 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                  color: theme.colorScheme.primary,
+                  // Tertiary (brand red), not primary (green) — the "green
+                  // top" was explicit feedback to become the institutional
+                  // red instead; see BrandAppBar for the same swap.
+                  color: theme.colorScheme.tertiary,
                 ),
                 child: Column(
                   children: [
                     // The extra ring container (surface-colored, slightly bigger
                     // than the avatar) is what makes the avatar read as "sitting
-                    // on" the gradient instead of blending into it.
+                    // on" the header instead of blending into it.
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -58,11 +63,11 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       child: CircleAvatar(
                         radius: 44,
-                        backgroundColor: theme.colorScheme.primaryContainer,
+                        backgroundColor: theme.colorScheme.tertiaryContainer,
                         child: Text(
                           _initials(user?.name),
                           style: theme.textTheme.headlineMedium?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer,
+                            color: theme.colorScheme.onTertiaryContainer,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -73,7 +78,7 @@ class ProfileScreen extends ConsumerWidget {
                       user?.name ?? 'Encuestador',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineSmall?.copyWith(
-                        color: theme.colorScheme.onPrimary,
+                        color: theme.colorScheme.onTertiary,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -81,7 +86,7 @@ class ProfileScreen extends ConsumerWidget {
                       user?.email ?? '',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onPrimary.withValues(
+                        color: theme.colorScheme.onTertiary.withValues(
                           alpha: 0.85,
                         ),
                       ),
@@ -125,14 +130,16 @@ class ProfileScreen extends ConsumerWidget {
                             curve: Curves.easeOut,
                             builder: (context, value, _) => Text(
                               '$value',
-                              style: theme.textTheme.headlineMedium,
+                              style: theme.textTheme.headlineMedium
+                                  ?.copyWith(color: theme.colorScheme.secondary),
                             ),
                           ),
                           Text(
                             syncedCount == 1
                                 ? 'Encuesta enviada'
                                 : 'Encuestas enviadas',
-                            style: theme.textTheme.bodyMedium,
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: theme.colorScheme.primary),
                           ),
                         ],
                       ),
@@ -180,11 +187,19 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
+    final theme = Theme.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        icon: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.tertiaryContainer),
+          child: Icon(Icons.logout_rounded, color: theme.colorScheme.onTertiaryContainer, size: 28),
+        ),
         title: const Text('Cerrar sesión'),
         content: const Text('¿Seguro que quieres cerrar tu sesión?'),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -192,6 +207,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: theme.colorScheme.tertiary),
             child: const Text('Cerrar sesión'),
           ),
         ],

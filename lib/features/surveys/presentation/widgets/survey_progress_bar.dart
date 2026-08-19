@@ -41,7 +41,8 @@ class SurveyProgressBar extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               sectionTitle!,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700, color: theme.colorScheme.secondary),
             ),
           ],
           const SizedBox(height: 6),

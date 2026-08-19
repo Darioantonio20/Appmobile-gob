@@ -53,10 +53,16 @@ class SurveyDetailScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(survey.title, style: theme.textTheme.headlineSmall),
+                      Text(
+                        survey.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.secondary),
+                      ),
                       if (survey.description != null && survey.description!.trim().isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
-                        Text(survey.description!, style: theme.textTheme.bodyLarge),
+                        Text(
+                          survey.description!,
+                          style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.primary),
+                        ),
                       ],
                       const SizedBox(height: AppSpacing.md),
                       Wrap(

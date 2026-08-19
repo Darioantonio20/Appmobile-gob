@@ -103,7 +103,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Text(
                             'Sistema de Encuestas Ciudadanas',
                             style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: theme.colorScheme.primary,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -116,7 +116,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             children: [
                               Text(
                                 'Correo electrónico',
-                                style: theme.textTheme.titleSmall,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: theme.colorScheme.secondary,
+                                ),
                               ),
                               const SizedBox(height: AppSpacing.sm),
                               TextFormField(
@@ -144,7 +146,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               const SizedBox(height: AppSpacing.md),
                               Text(
                                 'Contraseña',
-                                style: theme.textTheme.titleSmall,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: theme.colorScheme.secondary,
+                                ),
                               ),
                               const SizedBox(height: AppSpacing.sm),
                               TextFormField(

@@ -57,12 +57,23 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 2,
         centerTitle: false,
+        // Titles in the brand secondary (magenta) — plain (non-BrandAppBar)
+        // app bars default to this so a future screen gets it for free.
         titleTextStyle: AppTextStyles.textTheme.titleLarge?.copyWith(
-          color: colorScheme.onSurface,
+          color: colorScheme.secondary,
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
+          // Solid brand secondary (magenta) + white text: of the three brand
+          // colors, magenta has the lowest luminance (darkest), so it's the
+          // one that holds up best with plain white text on top — chosen for
+          // contrast, not just to match the title color, though it happens
+          // to also tie primary actions visually to headings.
+          backgroundColor: colorScheme.secondary,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: colorScheme.secondary.withValues(alpha: 0.4),
+          disabledForegroundColor: Colors.white.withValues(alpha: 0.8),
           minimumSize: const Size.fromHeight(AppSpacing.buttonHeight),
           textStyle: AppTextStyles.textTheme.labelLarge,
           shape: RoundedRectangleBorder(
@@ -99,9 +110,13 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
           borderSide: BorderSide.none,
         ),
+        // Brand primary (green/teal) border always, not just on focus —
+        // explicit feedback asked for the input border in this color;
+        // focused just goes a touch thicker for the usual "this one's
+        // active" hierarchy.
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          borderSide: BorderSide(color: colorScheme.outlineVariant),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -112,9 +127,15 @@ class AppTheme {
           borderSide: BorderSide(color: colorScheme.error, width: 1.5),
         ),
         labelStyle: AppTextStyles.textTheme.bodyLarge,
+        // Placeholder text and the icons inside the field (prefix/suffix)
+        // both in brand secondary (magenta) — explicit feedback: "the icons
+        // [should be] whatever color the placeholder is". Applies to every
+        // input app-wide via this one theme, including the survey fields.
         hintStyle: AppTextStyles.textTheme.bodyLarge?.copyWith(
-          color: colorScheme.onSurfaceVariant,
+          color: colorScheme.secondary,
         ),
+        prefixIconColor: colorScheme.secondary,
+        suffixIconColor: colorScheme.secondary,
       ),
       cardTheme: CardThemeData(
         elevation: 0,
@@ -149,6 +170,17 @@ class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: colorScheme.outlineVariant, space: 1),
+      // Dialogs/modals defaulted to bare Material (square-ish corners, no
+      // brand identity) — explicit feedback that they "look too simple".
+      // Rounded to match cards/buttons and titled in the brand secondary,
+      // consistent with the title-color rule elsewhere.
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusLg)),
+        titleTextStyle: AppTextStyles.textTheme.headlineSmall?.copyWith(color: colorScheme.secondary),
+        contentTextStyle: AppTextStyles.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
+      ),
     );
   }
 }

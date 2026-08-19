@@ -9,8 +9,9 @@ class AppColors {
   AppColors._();
 
   // ── Official brand colors ────────────────────────────────────────────
-  // Primary: Pantone P 131-6 C (institutional teal/green).
-  static const Color brandPrimary = Color(0xFF009885);
+  // Primary: Pantone P 131-6 C (institutional teal/green). RGB(0,152,135)
+  // per the brand kit.
+  static const Color brandPrimary = Color(0xFF009887);
 
   // Secondary: Pantone P 69-70 C (magenta). RGB(201,1,102) per the brand kit.
   static const Color brandSecondary = Color(0xFFC90166);

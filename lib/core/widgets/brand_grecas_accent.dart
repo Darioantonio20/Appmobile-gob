@@ -2,18 +2,25 @@ import 'package:flutter/material.dart';
 
 import '../theme/brand_assets.dart';
 
-/// Thin decorative strip of the official "grecas" pattern along one edge of
-/// a screen. Tiled vertically ([ImageRepeat.repeatY]) instead of stretched
-/// to fit — the pattern is a repeat unit, so tiling is what keeps it
-/// crisp and proportional at any screen height, from a small phone to a
-/// tall tablet.
+/// Subtle background texture of the official "grecas" pattern (Mayan-inspired
+/// geometric motif) along the right edge of a screen, sitting behind the
+/// page content in low opacity — a background accent, not a competing
+/// foreground graphic.
 ///
-/// Deliberately narrow (below [AppSpacing]'s smallest page padding) so it
-/// reads as a designed accent, not a sidebar competing with page content —
-/// wrap the page content in its normal [ResponsiveCenter]/padding as usual;
-/// that padding is what keeps text clear of the strip.
+/// The source asset (`grecas.png`) is a narrow vertical strip (344×1991px)
+/// meant to be *tiled*, not stretched — [ImageRepeat.repeatY] does that, but
+/// only looks right once the image is actually scaled down to the target
+/// width first via [ResizeImage]; without that, `DecorationImage` renders
+/// each tile at the source's full 344px width and just clips it down to fit,
+/// which is what made this read as tiny repeated fragments before rather
+/// than a clean pattern.
 class BrandGrecasAccent extends StatelessWidget {
-  const BrandGrecasAccent({super.key, this.width = 12, this.alignment = Alignment.centerLeft});
+  const BrandGrecasAccent({
+    super.key,
+    this.width = 160,
+    this.alignment = Alignment.centerRight,
+    this.opacity = 0.16,
+  });
 
   final double width;
 
@@ -21,19 +28,33 @@ class BrandGrecasAccent extends StatelessWidget {
   /// parent [Stack] this pins itself to.
   final Alignment alignment;
 
+  /// Kept low on purpose — this sits *behind* page content (first child in
+  /// the login screen's [Stack]), so it needs to read as texture, not
+  /// compete with the form on top of it.
+  final double opacity;
+
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: alignment,
-      child: SizedBox(
-        width: width,
-        height: double.infinity,
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage(BrandAssets.grecas),
-              repeat: ImageRepeat.repeatY,
-              alignment: Alignment.topCenter,
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    return IgnorePointer(
+      child: Align(
+        alignment: alignment,
+        child: Opacity(
+          opacity: opacity,
+          child: SizedBox(
+            width: width,
+            height: double.infinity,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: ResizeImage(
+                    const AssetImage(BrandAssets.grecas),
+                    width: (width * devicePixelRatio).round(),
+                  ),
+                  repeat: ImageRepeat.repeatY,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
             ),
           ),
         ),

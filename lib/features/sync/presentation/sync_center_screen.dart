@@ -113,7 +113,7 @@ class _StatusHeader extends ConsumerWidget {
                       : pendingCount == 0
                           ? 'Todo al día'
                           : '$pendingCount por enviar',
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.secondary),
                 ),
                 const SizedBox(height: 4),
                 Text(

@@ -108,7 +108,13 @@ class _FillBody extends StatelessWidget {
                                 ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                           ),
                         ),
-                      Text(question.text, style: Theme.of(context).textTheme.headlineSmall),
+                      Text(
+                        question.text,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(color: Theme.of(context).colorScheme.secondary),
+                      ),
                       const SizedBox(height: AppSpacing.lg),
                       QuestionField(
                         question: question,
@@ -163,17 +169,36 @@ class _FillNavigationBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          if (state.isSaving) ...[
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onSurfaceVariant),
+          Expanded(
+            child: AnimatedSwitcher(
+              // Was an instant if/else swap (Spacer() <-> spinner+text) —
+              // popped in/out with a layout jump exactly when autosave
+              // happened to fire around the same time as a section
+              // transition, reading as a flicker/glitch. This fades and
+              // resizes smoothly instead.
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
+              child: state.isSaving
+                  ? Row(
+                      key: const ValueKey('saving'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Guardando…',
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    )
+                  : const SizedBox(key: ValueKey('idle')),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Text('Guardando…', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            const Spacer(),
-          ] else
-            const Spacer(),
+          ),
           Expanded(
             flex: 3,
             child: AppButton(

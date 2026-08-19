@@ -14,8 +14,8 @@ class StaggeredFadeSlideIn extends StatefulWidget {
     super.key,
     required this.child,
     this.index = 0,
-    this.delayPerItem = const Duration(milliseconds: 45),
-    this.duration = const Duration(milliseconds: 380),
+    this.delayPerItem = const Duration(milliseconds: 25),
+    this.duration = const Duration(milliseconds: 240),
     this.beginOffset = const Offset(0, 0.06),
   });
 
@@ -25,7 +25,10 @@ class StaggeredFadeSlideIn extends StatefulWidget {
   final Duration duration;
   final Offset beginOffset;
 
-  static const int _maxStaggeredIndex = 8;
+  // Was 8 (up to ~740ms before the last item finished appearing, combined
+  // with the old 380ms duration) — cut down after feedback that the app
+  // felt slow; content should be fully settled well under half a second.
+  static const int _maxStaggeredIndex = 5;
 
   @override
   State<StaggeredFadeSlideIn> createState() => _StaggeredFadeSlideInState();

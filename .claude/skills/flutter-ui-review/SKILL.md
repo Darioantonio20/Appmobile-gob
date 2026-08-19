@@ -25,6 +25,15 @@ new route transition, one of the sections below almost certainly already covers 
 - Breakpoints: `AppBreakpoints.tablet` (600) / `AppBreakpoints.desktop` (1024) in the same
   file as spacing.
 
+## Type scale — don't push sizes back up
+
+`AppTextStyles.textTheme` (`lib/core/theme/app_text_styles.dart`) runs a bit larger than
+stock Material for legibility, but it's already been turned down once after explicit
+feedback that it read as too large on phones. If a screen still looks oversized, that's
+almost never a signal to bump the *global* scale again — check first whether that
+specific screen is using a bigger role than it needs (e.g. `headlineMedium` where
+`titleLarge` would do) before touching the shared scale.
+
 ## Responsive — every screen gets checked at more than one width
 
 This audience uses phones, but tablets are an explicit target too ("optimizado para
@@ -143,6 +152,37 @@ even before anyone objected to how one looked, so **don't reach for
 `LinearGradient`/`RadialGradient` for a background here**. Use a solid
 `colorScheme.primary`/`secondary`/`tertiary` (or a `Container` with a solid `color`)
 instead — `BrandAppBar` and the login/profile hero header are the reference.
+
+**Where each brand role goes** (settled by explicit feedback — reuse these, don't
+reinvent per screen):
+- **Top bars** (`BrandAppBar`, the profile hero header): solid `colorScheme.tertiary`
+  (brand red) with `onTertiary` text/icons. Was primary green at first — changed on
+  request.
+- **Content titles** (survey/card/screen titles, question text, section titles, plain
+  `AppBar` titles): `colorScheme.secondary` (brand magenta) — set as the default
+  `appBarTheme.titleTextStyle` color, applied explicitly elsewhere (`.copyWith(color:
+  colorScheme.secondary)`) since many titles already override color for other reasons.
+- **Content subtitles** (descriptions, taglines, secondary body text under a title):
+  `colorScheme.primary` (brand green/teal).
+- **Bottom nav bar**: fixed `AppColors.brandBlack` background with `AppColors.brandTan`
+  icons/labels — a deliberate literal brand pairing, not colorScheme-derived (doesn't
+  shift with light/dark theme on purpose).
+- **Primary buttons** (`AppButton` primary variant / `elevatedButtonTheme`): solid
+  `colorScheme.secondary` fill, plain white text — chosen because magenta has the lowest
+  luminance of the three brand colors, so it holds up best against white specifically
+  (don't assume this same button-fill color is "correct" if the palette ever changes;
+  re-check contrast against white when it does).
+- **Inputs** (`inputDecorationTheme`, applies to every `TextFormField`/`DropdownButtonFormField`
+  app-wide, survey fields included): border `colorScheme.primary` even when not
+  focused; hint text *and* prefix/suffix icons both `colorScheme.secondary` — the icons
+  intentionally match the hint color rather than getting their own.
+
+Don't hardcode these as raw hex either, even though the brand kit gives literal hex
+values — `colorScheme.primary/secondary/tertiary` already resolve to the right tone in
+both light and dark (each is independently seeded from a brand color in `AppTheme`, see
+below), and a raw hex text color is exactly the kind of thing that broke dark-mode
+contrast before (see Contrast section). `AppColors.brandBlack`/`brandTan` are the one
+deliberate exception (nav bar) — a fixed brand pairing that isn't meant to adapt.
 
 ## MediaQuery / text scaling — don't hand-roll this
 

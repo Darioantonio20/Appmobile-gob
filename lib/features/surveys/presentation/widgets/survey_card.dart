@@ -61,7 +61,7 @@ class _SurveyCardState extends State<SurveyCard> {
                     Expanded(
                       child: Text(
                         survey.title,
-                        style: theme.textTheme.titleLarge,
+                        style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.secondary),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -79,7 +79,7 @@ class _SurveyCardState extends State<SurveyCard> {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     survey.description!,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

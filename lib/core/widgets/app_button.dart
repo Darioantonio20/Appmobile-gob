@@ -28,8 +28,12 @@ class AppButton extends StatelessWidget {
             width: 24,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
+              // Primary button is a solid brand-secondary fill with white
+              // text (see elevatedButtonTheme) — the spinner matches that
+              // white, not colorScheme.onPrimary, which is a different role
+              // now that the button isn't primary-colored.
               color: variant == AppButtonVariant.primary
-                  ? Theme.of(context).colorScheme.onPrimary
+                  ? Colors.white
                   : Theme.of(context).colorScheme.primary,
             ),
           )
