@@ -30,23 +30,51 @@ class SurveyLocalDataSource {
     return row == null ? null : _surveyFromRow(row);
   }
 
-  Future<void> cacheSurveys(List<Survey> surveys) {
-    // The API doesn't send a last-modified timestamp for a survey — `now`
-    // doubles for both the table's `updatedAt` and `fetchedAt` columns.
+  /// Caches the survey *list* (`GET /surveys` — title/description/dates
+  /// only, never `sections`). Replaces the whole local set, since the list
+  /// endpoint is the authoritative source of which surveys are assigned —
+  /// but a survey's previously-downloaded questions (from [cacheSurvey],
+  /// via `GET /surveys/{id}`) must survive this replace, or every list
+  /// refresh would silently wipe the offline-fill data. So each outgoing
+  /// row carries over its existing `sectionsJson` untouched.
+  Future<void> cacheSurveys(List<Survey> surveys) async {
     final now = DateTime.now();
-    return _db.replaceAllSurveys(
-      surveys
-          .map((s) => SurveysTableCompanion.insert(
-                id: s.id,
-                title: s.title,
-                description: Value(s.description),
-                sectionsJson: jsonEncode(s.sections.map((sec) => sec.toJson()).toList()),
-                validFrom: Value(s.validFrom),
-                validUntil: Value(s.validUntil),
-                updatedAt: now,
-                fetchedAt: now,
-              ))
-          .toList(),
+    final existingById = {for (final row in await _db.getAllSurveys()) row.id: row};
+    final rows = surveys.map((s) {
+      final existing = existingById[s.id];
+      return SurveysTableCompanion.insert(
+        id: s.id,
+        title: s.title,
+        description: Value(s.description),
+        sectionsJson: existing?.sectionsJson ?? '[]',
+        validFrom: Value(s.validFrom),
+        validUntil: Value(s.validUntil),
+        updatedAt: now,
+        fetchedAt: existing?.fetchedAt ?? now,
+      );
+    }).toList();
+    await _db.replaceAllSurveys(rows);
+  }
+
+  /// Caches one survey's *full* detail (`GET /surveys/{id}` — includes
+  /// `sections`/questions). This is what actually makes offline filling
+  /// possible: called after every successful detail fetch so the survey can
+  /// still be opened and answered with no connectivity later. Only touches
+  /// this one row — never wipes the rest of the cache (see
+  /// [AppDatabase.upsertSurvey]).
+  Future<void> cacheSurvey(Survey survey) {
+    final now = DateTime.now();
+    return _db.upsertSurvey(
+      SurveysTableCompanion.insert(
+        id: survey.id,
+        title: survey.title,
+        description: Value(survey.description),
+        sectionsJson: jsonEncode(survey.sections.map((sec) => sec.toJson()).toList()),
+        validFrom: Value(survey.validFrom),
+        validUntil: Value(survey.validUntil),
+        updatedAt: now,
+        fetchedAt: now,
+      ),
     );
   }
 

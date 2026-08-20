@@ -29,6 +29,14 @@ class SurveyRepositoryImpl implements SurveyRepository {
     try {
       final surveys = await _remote.fetchSurveys();
       await _local.cacheSurveys(surveys);
+      // `GET /surveys` never includes questions — only `GET /surveys/{id}`
+      // does. Prefetch every assigned survey's full detail now, in the
+      // background, so the encuestador can open and fill any of them later
+      // with zero connectivity (the whole point of going out to a
+      // community). Fire-and-forget: the list screen doesn't wait on this,
+      // and a failed prefetch here just means that one survey falls back to
+      // whatever was already cached (or an on-open retry via [getSurvey]).
+      unawaited(_prefetchFullSurveys(surveys));
       return Result.success(surveys);
     } catch (e) {
       _log.warning('No se pudo refrescar encuestas; se conserva la caché local', e);
@@ -36,8 +44,36 @@ class SurveyRepositoryImpl implements SurveyRepository {
     }
   }
 
+  Future<void> _prefetchFullSurveys(List<Survey> surveys) async {
+    for (final survey in surveys) {
+      try {
+        final full = await _remote.fetchSurvey(survey.id);
+        await _local.cacheSurvey(full);
+      } catch (e) {
+        _log.warning('No se pudo precargar la encuesta ${survey.id} para uso sin conexión', e);
+      }
+    }
+  }
+
   @override
-  Future<Survey?> getSurvey(String id) => _local.getSurvey(id);
+  Future<Survey?> getSurvey(String id) async {
+    // Offline-first with a fresh-when-possible bias: try the network first
+    // (so edits made on the backend show up), and only fall back to
+    // whatever's cached locally when that fails — no connectivity, server
+    // error, the survey no longer being assigned, etc. This is also what
+    // makes [SurveyRemoteDataSource.fetchSurvey] (`GET /surveys/{id}`)
+    // actually get called — without it, a survey's `sections` never made it
+    // past the list-only cache from [refreshSurveys], and filling/sending
+    // it was impossible.
+    try {
+      final survey = await _remote.fetchSurvey(id);
+      await _local.cacheSurvey(survey);
+      return survey;
+    } catch (e) {
+      _log.warning('No se pudo descargar la encuesta $id; se usa la copia local si existe', e);
+      return _local.getSurvey(id);
+    }
+  }
 
   @override
   Stream<List<SurveyResponse>> watchResponsesForSurvey(String surveyId) =>

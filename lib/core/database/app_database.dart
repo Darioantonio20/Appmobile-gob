@@ -142,15 +142,31 @@ class AppDatabase extends _$AppDatabase {
     return (select(surveysTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
+  Future<List<SurveyRow>> getAllSurveys() => select(surveysTable).get();
+
   /// The survey list endpoint returns the full authoritative set on every
   /// fetch, so we replace the whole local cache in one transaction rather
   /// than trying to diff it. This is safe because user data (answers)
   /// lives in [SurveyResponsesTable], never here.
+  ///
+  /// Callers are responsible for carrying over each survey's previously
+  /// downloaded `sectionsJson` when the incoming data doesn't include it
+  /// (the list endpoint never does) — see
+  /// `SurveyLocalDataSource.cacheSurveys`. This method itself just replaces
+  /// rows as given.
   Future<void> replaceAllSurveys(List<SurveysTableCompanion> surveys) async {
     await transaction(() async {
       await delete(surveysTable).go();
       await batch((batch) => batch.insertAll(surveysTable, surveys));
     });
+  }
+
+  /// Upserts a single survey's full detail (sections/questions included) —
+  /// used after downloading `GET /surveys/{id}`, which is the only endpoint
+  /// that returns questions. Unlike [replaceAllSurveys], this never touches
+  /// other rows, so downloading one survey's detail can't clobber another's.
+  Future<void> upsertSurvey(SurveysTableCompanion survey) {
+    return into(surveysTable).insertOnConflictUpdate(survey);
   }
 
   // ---------------------------------------------------------------------
