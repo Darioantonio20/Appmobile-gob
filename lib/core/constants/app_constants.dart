@@ -4,22 +4,24 @@
 /// build can point at dev/staging/prod without touching code:
 ///
 /// ```
-/// flutter run --dart-define=API_BASE_URL=https://encuestas.chiapas.gob.mx/api
+/// flutter run --dart-define=API_BASE_URL=http://192.168.x.x:8000/api
 /// ```
 ///
-/// The default below points at the Laravel dev backend on `localhost:8000`
-/// — via `10.0.2.2`, the Android emulator's alias for the host machine's
-/// `localhost` (a physical device or a real deployment needs an actual
-/// reachable URL, passed via --dart-define as above). Swap this default
-/// once there's a real staging/prod URL — nothing else in the app needs to
-/// change either way, because every network call goes through
+/// The default below points at the real production backend
+/// (`encuestas.sesaech.gob.mx`) — confirmed reachable (a bare `GET
+/// /api/surveys` correctly returns 401 Unauthenticated without a token). Use
+/// `--dart-define` to point at a local Laravel dev server instead (your PC's
+/// LAN IP, e.g. `192.168.x.x:8000` — never `localhost`, which on a physical
+/// device resolves to the device itself, not your PC) when developing
+/// against a backend that isn't deployed yet. Nothing else in the app needs
+/// to change either way, because every network call goes through
 /// [ApiEndpoints] / [DioClient].
 class AppConstants {
   AppConstants._();
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api',
+    defaultValue: 'https://encuestas.sesaech.gob.mx/api',
   );
 
   static const Duration connectTimeout = Duration(seconds: 15);

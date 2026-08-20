@@ -70,18 +70,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: BrandGrecasAccent()),
-          SafeArea(
-            child: SingleChildScrollView(
-              child: ResponsiveCenter(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: Stack(
+          children: [
+            const Positioned.fill(child: BrandGrecasAccent()),
+            SafeArea(
+              child: SingleChildScrollView(
+                child: ResponsiveCenter(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: AppSpacing.lg),
                         StaggeredFadeSlideIn(
@@ -288,6 +291,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

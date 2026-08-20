@@ -153,11 +153,22 @@ class SurveyRepositoryImpl implements SurveyRepository {
   Future<void> _syncOne(SurveyResponse response) async {
     await _local.markStatus(response.localId, status: SyncStatus.syncing);
     try {
-      final serverId = await _remote.submitResponse(response);
+      // The answers payload needs each question's type (to know whether a
+      // raw value is an option id, free text, or a number — see
+      // SurveyRemoteDataSource._buildAnswers), so the survey itself has to
+      // come along, not just the response.
+      final survey = await _local.getSurvey(response.surveyId);
+      if (survey == null) {
+        throw StateError('La encuesta ${response.surveyId} ya no está disponible localmente.');
+      }
+      await _remote.submitResponse(survey, response);
       await _local.markStatus(
         response.localId,
         status: SyncStatus.synced,
-        serverId: serverId,
+        // The real endpoint just confirms with a message, no server-side
+        // id to store — response_id (this response's own localId) is
+        // already what identifies it end to end.
+        serverId: response.localId,
         syncedAt: DateTime.now(),
       );
     } catch (e) {

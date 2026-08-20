@@ -39,21 +39,19 @@ class BrandGrecasAccent extends StatelessWidget {
     return IgnorePointer(
       child: Align(
         alignment: alignment,
-        child: Opacity(
-          opacity: opacity,
-          child: SizedBox(
-            width: width,
-            height: double.infinity,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: ResizeImage(
-                    const AssetImage(BrandAssets.grecas),
-                    width: (width * devicePixelRatio).round(),
-                  ),
-                  repeat: ImageRepeat.repeatY,
-                  alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: width,
+          height: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: ResizeImage(
+                  const AssetImage(BrandAssets.grecas),
+                  width: (width * devicePixelRatio).round(),
                 ),
+                repeat: ImageRepeat.repeatY,
+                alignment: Alignment.topCenter,
+                opacity: opacity,
               ),
             ),
           ),

@@ -73,12 +73,6 @@ class QuestionField extends StatelessWidget {
         for (final option in _optionsNeedingText)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
-            // Reuses the same stateful text field as short/long-text answers
-            // — a plain TextField rebuilt fresh on every keystroke would
-            // fight its own cursor. Keyed per-option: more than one
-            // requires-text option can be selected at once (multiple
-            // choice), and each needs its own independent controller
-            // rather than Flutter reusing one by list position.
             child: _TextAnswerField(
               key: ValueKey(question.textAnswerKeyFor(option)),
               value: textAnswers[question.textAnswerKeyFor(option)] as String?,
@@ -139,9 +133,6 @@ class _TextAnswerFieldState extends State<_TextAnswerField> {
   @override
   void didUpdateWidget(covariant _TextAnswerField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Keep in sync if the answer changes from outside this field (e.g. the
-    // controller reloads a resumed draft) without fighting the user's cursor
-    // while they're actively typing.
     if (widget.value != _controller.text && widget.value != oldWidget.value) {
       _controller.text = widget.value ?? '';
     }
@@ -167,9 +158,6 @@ class _TextAnswerFieldState extends State<_TextAnswerField> {
   }
 }
 
-/// Plain-number answer, respecting [SurveyQuestion.minValue]/[maxValue]/
-/// [maxDecimals] as an input filter (final range check still happens in
-/// [SurveyQuestion.validate] — this just steers input toward a valid shape).
 class _NumericField extends StatefulWidget {
   const _NumericField({required this.question, required this.value, required this.onChanged});
 
@@ -313,7 +301,10 @@ class _ChoiceTile extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -377,7 +368,10 @@ class _MatrixOptionChip extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -452,7 +446,7 @@ class _DateField extends StatelessWidget {
     final month = parsed?.month;
     final year = parsed?.year;
 
-    final years = [for (var y = now.year; y >= now.year - 5; y--) y];
+    final years = [for (var y = now.year; y >= now.year - 100; y--) y];
     final daysInSelectedMonth = DateTime(year ?? now.year, (month ?? now.month) + 1, 0).day;
 
     void update({int? newDay, int? newMonth, int? newYear}) {
@@ -461,14 +455,11 @@ class _DateField extends StatelessWidget {
       final maxDay = DateTime(y, m + 1, 0).day;
       var d = newDay ?? day ?? now.day;
       if (d > maxDay) d = maxDay;
-      onChanged(DateTime(y, m, d).toIso8601String());
+      onChanged(
+        '${y.toString().padLeft(4, '0')}-${m.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}',
+      );
     }
 
-    // Month gets its own full-width row rather than sharing one with Día/Año:
-    // "Septiembre" at this app's accessibility text-scale ceiling (1.4x) does
-    // not fit next to two other dropdowns on a real phone width — that
-    // three-across layout is what actually overflowed. Día/Año are both
-    // short (max 2/4 digits) and comfortably share a row on their own.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -517,7 +508,7 @@ class _DatePartDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<int>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       hint: const Text('—'),
       decoration: InputDecoration(
@@ -529,7 +520,10 @@ class _DatePartDropdown extends StatelessWidget {
           DropdownMenuItem(value: itemValue, child: Text(itemLabel, overflow: TextOverflow.ellipsis)),
       ],
       onChanged: (picked) {
-        if (picked != null) onChanged(picked);
+        if (picked != null) {
+          HapticFeedback.selectionClick();
+          onChanged(picked);
+        }
       },
     );
   }
@@ -547,6 +541,7 @@ class _MatrixField extends StatelessWidget {
   final ValueChanged<Object?> onChanged;
 
   void _select(String rowId, String optionId) {
+    HapticFeedback.selectionClick();
     onChanged({...value, rowId: optionId});
   }
 
@@ -623,10 +618,14 @@ class _MatrixField extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   child: Center(
-                    child: Radio<String>(
-                      value: option.id,
+                    child: RadioGroup<String>(
                       groupValue: value[row.id],
-                      onChanged: (v) => _select(row.id, v!),
+                      onChanged: (v) {
+                        if (v != null) _select(row.id, v);
+                      },
+                      child: Radio<String>(
+                        value: option.id,
+                      ),
                     ),
                   ),
                 ),

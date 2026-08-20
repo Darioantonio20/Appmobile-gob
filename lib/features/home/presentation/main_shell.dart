@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/offline_banner.dart';
 import '../../surveys/presentation/survey_providers.dart';
 
 /// Persistent bottom-navigation shell for the two top-level sections. Kept
@@ -17,14 +19,21 @@ class MainShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pendingCount = ref.watch(syncableResponsesProvider).valueOrNull?.length ?? 0;
+    final pendingCount = ref.watch(
+      syncableResponsesProvider.select((s) => s.valueOrNull?.length ?? 0),
+    );
     // Explicit brand black/tan, not colorScheme-derived: this is a
     // deliberate fixed brand statement per explicit feedback (black bar,
     // tan icons), not something that should shift with light/dark theme.
     const iconColor = AppColors.brandTan;
 
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       // Rounded top (still flat — no shadow, this app's cards/bars never
       // use elevation) is what makes the nav bar read as its own designed
       // element instead of a bare system default.
@@ -38,8 +47,12 @@ class MainShell extends ConsumerWidget {
             indicatorColor: AppColors.brandTan.withValues(alpha: 0.22),
             elevation: 0,
             labelTextStyle: WidgetStateProperty.all(const TextStyle(color: iconColor)),
-            onDestinationSelected: (index) =>
-                navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex),
+            onDestinationSelected: (index) {
+              if (index != navigationShell.currentIndex) {
+                HapticFeedback.selectionClick();
+              }
+              navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
+            },
             destinations: [
               const NavigationDestination(
                 icon: Icon(Icons.assignment_outlined, color: iconColor),

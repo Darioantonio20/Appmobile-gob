@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -213,7 +214,10 @@ class _ResponseRow extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               tooltip: 'Reintentar envío',
-              onPressed: () => ref.read(surveyRepositoryProvider).retrySingle(response.localId),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                ref.read(surveyRepositoryProvider).retrySingle(response.localId);
+              },
             ),
         ],
       ),

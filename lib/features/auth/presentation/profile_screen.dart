@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/brand_assets.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/brand_app_bar.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import '../../surveys/presentation/survey_providers.dart';
 import 'auth_controller.dart';
@@ -27,8 +28,8 @@ class ProfileScreen extends ConsumerWidget {
         .length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Mi perfil', style: TextStyle(color: theme.colorScheme.secondary)),
+      appBar: const BrandAppBar(
+        title: Text('Mi perfil'),
       ),
       body: ResponsiveCenter(
         child: ListView(

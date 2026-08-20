@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -46,54 +47,193 @@ class SurveyDetailScreen extends ConsumerWidget {
 
           return ResponsiveCenter(
             child: ListView(
-              padding: const EdgeInsets.only(bottom: 120),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, 120),
               children: [
+                // Main Survey Overview Card
                 StaggeredFadeSlideIn(
                   index: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                      border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.assignment_rounded,
+                                color: theme.colorScheme.primary,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                survey.title,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: theme.colorScheme.secondary,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (survey.description != null && survey.description!.trim().isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            survey.description!,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                        Wrap(
+                          spacing: AppSpacing.sm,
+                          runSpacing: AppSpacing.sm,
+                          children: [
+                            _InfoChip(
+                              icon: Icons.quiz_outlined,
+                              label: '${survey.questionCount} preguntas',
+                            ),
+                            _InfoChip(
+                              icon: Icons.layers_outlined,
+                              label: '${survey.sections.length} ${survey.sections.length == 1 ? 'sección' : 'secciones'}',
+                            ),
+                            if (survey.validUntil != null)
+                              _InfoChip(
+                                icon: Icons.event_available_rounded,
+                                label: 'Vigente hasta ${DateFormat('d/MM/y').format(survey.validUntil!)}',
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // Sections Breakdown Preview
+                if (survey.sections.isNotEmpty) ...[
+                  StaggeredFadeSlideIn(
+                    index: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Estructura de la encuesta',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.secondary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        for (final (sIndex, section) in survey.sections.indexed)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${sIndex + 1}',
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    section.title.isEmpty ? 'Sección ${sIndex + 1}' : section.title,
+                                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                                Text(
+                                  '${section.questions.length} preg.',
+                                  style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+
+                // Responses Section
+                StaggeredFadeSlideIn(
+                  index: 2,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        survey.title,
-                        style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.secondary),
-                      ),
-                      if (survey.description != null && survey.description!.trim().isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          survey.description!,
-                          style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.primary),
+                        'Historial de respuestas (${responses.length})',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.secondary,
                         ),
-                      ],
-                      const SizedBox(height: AppSpacing.md),
-                      Wrap(
-                        spacing: AppSpacing.sm,
-                        runSpacing: AppSpacing.sm,
-                        children: [
-                          _InfoChip(icon: Icons.list_alt_rounded, label: '${survey.questionCount} preguntas'),
-                          if (survey.validUntil != null)
-                            _InfoChip(
-                              icon: Icons.event_available_rounded,
-                              label: 'Vigente hasta ${DateFormat('d/MM/y').format(survey.validUntil!)}',
-                            ),
-                        ],
                       ),
+                      const SizedBox(height: AppSpacing.sm),
+                      if (responses.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: Text(
+                                  'Aún no has registrado respuestas para esta encuesta.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        for (final response in responses)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: _ResponseTile(response: response, surveyId: surveyId),
+                          ),
                     ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xl),
-                if (responses.isNotEmpty) ...[
-                  Text('Mis respuestas', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: AppSpacing.sm),
-                  for (final (index, response) in responses.indexed)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: StaggeredFadeSlideIn(
-                        index: index + 1,
-                        child: _ResponseTile(response: response, surveyId: surveyId),
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
               ],
             ),
           );
@@ -103,10 +243,31 @@ class SurveyDetailScreen extends ConsumerWidget {
           ? null
           : SafeArea(
               minimum: const EdgeInsets.all(AppSpacing.md),
-              child: AppButton(
-                label: 'Llenar nueva encuesta',
-                icon: Icons.edit_note_rounded,
-                onPressed: () => context.push(RoutePaths.surveyFillPath(surveyId)),
+              child: Builder(
+                builder: (context) {
+                  final responses = responsesAsync.valueOrNull ?? const <SurveyResponse>[];
+                  final draft = responses.where((r) => r.status == SyncStatus.draft).firstOrNull;
+
+                  if (draft != null) {
+                    return AppButton(
+                      label: 'Continuar borrador',
+                      icon: Icons.edit_document,
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        context.push(RoutePaths.surveyFillPath(surveyId, responseLocalId: draft.localId));
+                      },
+                    );
+                  }
+
+                  return AppButton(
+                    label: 'Llenar encuesta',
+                    icon: Icons.edit_note_rounded,
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      context.push(RoutePaths.surveyFillPath(surveyId));
+                    },
+                  );
+                },
               ),
             ),
     );
@@ -125,15 +286,21 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 6),
-          Text(label, style: theme.textTheme.labelMedium),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -159,21 +326,50 @@ class _ResponseTile extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         onTap: isDraft
-            ? () => context.push(RoutePaths.surveyFillPath(surveyId, responseLocalId: response.localId))
+            ? () {
+                HapticFeedback.selectionClick();
+                context.push(RoutePaths.surveyFillPath(surveyId, responseLocalId: response.localId));
+              }
             : null,
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(
+              color: isDraft
+                  ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ),
           child: Row(
             children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDraft
+                      ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                      : theme.colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isDraft ? Icons.edit_rounded : Icons.check_circle_outline_rounded,
+                  size: 18,
+                  color: isDraft ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isDraft ? 'Borrador sin terminar' : 'Respuesta',
-                      style: theme.textTheme.titleSmall,
+                      isDraft ? 'Borrador en curso' : 'Respuesta registrada',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: isDraft ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       DateFormat("d 'de' MMMM, HH:mm", 'es_MX').format(dateLabel),
                       style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -191,7 +387,10 @@ class _ResponseTile extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded),
                   tooltip: 'Reintentar envío',
-                  onPressed: () => ref.read(surveyRepositoryProvider).retrySingle(response.localId),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    ref.read(surveyRepositoryProvider).retrySingle(response.localId);
+                  },
                 ),
               ],
             ],

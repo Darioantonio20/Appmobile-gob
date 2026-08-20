@@ -28,7 +28,18 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> logout() => _local.clear();
+  Future<void> logout() async {
+    // Best-effort: revoke the token server-side, but never block a local
+    // logout on it succeeding — the user can always log out offline, and a
+    // token that couldn't be revoked (no connection, already expired, ...)
+    // just ages out on its own.
+    try {
+      await _remote.logout();
+    } catch (_) {
+      // Ignored on purpose — see above.
+    }
+    await _local.clear();
+  }
 
   @override
   Future<User?> restoreSession() => _local.readUser();

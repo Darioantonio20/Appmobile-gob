@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Primary/secondary action button with a built-in loading state (shows a
 /// spinner and disables itself) so async actions (login, submit, sync) can
@@ -19,9 +20,14 @@ class AppButton extends StatelessWidget {
   final IconData? icon;
   final AppButtonVariant variant;
 
+  void _handlePress() {
+    HapticFeedback.lightImpact();
+    onPressed?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final effectiveOnPressed = isLoading ? null : onPressed;
+    final effectiveOnPressed = (isLoading || onPressed == null) ? null : _handlePress;
     final child = isLoading
         ? SizedBox(
             height: 24,
