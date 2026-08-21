@@ -69,6 +69,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // One-shot: shows the backend's own logout confirmation once, right
+    // after landing back here, then clears it so it can't reappear on a
+    // later rebuild (e.g. rotating the device or hot-reloading).
+    ref.listen(logoutMessageProvider, (previous, next) {
+      if (next == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(next)));
+      ref.read(logoutMessageProvider.notifier).state = null;
+    });
+
     return Scaffold(
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),

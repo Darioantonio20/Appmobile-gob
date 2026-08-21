@@ -59,19 +59,30 @@ class SurveyRepositoryImpl implements SurveyRepository {
   Future<Survey?> getSurvey(String id) async {
     // Offline-first with a fresh-when-possible bias: try the network first
     // (so edits made on the backend show up), and only fall back to
-    // whatever's cached locally when that fails — no connectivity, server
-    // error, the survey no longer being assigned, etc. This is also what
-    // makes [SurveyRemoteDataSource.fetchSurvey] (`GET /surveys/{id}`)
-    // actually get called — without it, a survey's `sections` never made it
-    // past the list-only cache from [refreshSurveys], and filling/sending
-    // it was impossible.
+    // whatever's cached locally when that fails — but only for a
+    // *connectivity* failure (no signal, timeout). This is also what makes
+    // [SurveyRemoteDataSource.fetchSurvey] (`GET /surveys/{id}`) actually
+    // get called — without it, a survey's `sections` never made it past
+    // the list-only cache from [refreshSurveys], and filling/sending it
+    // was impossible.
     try {
       final survey = await _remote.fetchSurvey(id);
       await _local.cacheSurvey(survey);
       return survey;
     } catch (e) {
-      _log.warning('No se pudo descargar la encuesta $id; se usa la copia local si existe', e);
-      return _local.getSurvey(id);
+      final failure = mapNetworkError(e);
+      if (failure.type == FailureType.network) {
+        _log.warning('Sin conexión al pedir la encuesta $id; se usa la copia local si existe', e);
+        return _local.getSurvey(id);
+      }
+      // A definitive rejection from the backend itself (e.g. `{"message":
+      // "La encuesta no existe o no tienes permiso para acceder a ella."}`)
+      // — falling back to a stale local copy here would be actively wrong
+      // (the server is saying access is denied *now*), so this propagates
+      // instead of swallowing the reason. `SurveyFillController`/the detail
+      // screen's provider both catch [AppFailure] to show it verbatim.
+      _log.warning('El backend rechazó la encuesta $id: ${failure.message}', e);
+      throw failure;
     }
   }
 

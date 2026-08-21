@@ -37,9 +37,9 @@ class SurveyFillScreen extends ConsumerWidget {
       ),
       body: switch (state) {
         SurveyFillLoading() => const LoadingView(message: 'Cargando encuesta…'),
-        SurveyFillNotFound() => const EmptyStateView(
+        SurveyFillNotFound(:final message) => EmptyStateView(
             title: 'No se encontró la encuesta',
-            message: 'Vuelve a la lista e inténtalo de nuevo.',
+            message: message ?? 'Vuelve a la lista e inténtalo de nuevo.',
             icon: Icons.search_off_rounded,
           ),
         SurveyFillReady() => _FillBody(state: state, controller: ref.read(provider.notifier)),
@@ -83,7 +83,13 @@ class _FillBody extends StatelessWidget {
                     ),
                   ),
                   child: Column(
-                    key: ValueKey(state.currentSectionIndex),
+                    // Keyed by section *and* by which questions are actually
+                    // showing: a logic jump can change the latter without
+                    // changing the former (e.g. answering the gating
+                    // question swaps in a different follow-up right after
+                    // it, same section) — reusing this fade+slide transition
+                    // for that case too, rather than an instant layout jump.
+                    key: ValueKey('${state.currentSectionIndex}:${state.currentQuestions.map((q) => q.id).join(',')}'),
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       for (final (index, question) in state.currentQuestions.indexed)

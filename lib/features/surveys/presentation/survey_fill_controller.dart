@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/location/location_service.dart';
 import '../../../core/utils/app_info.dart';
+import '../../../core/utils/result.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/survey_repository_impl.dart';
 import '../domain/survey.dart';
@@ -30,10 +31,15 @@ class SurveyFillLoading extends SurveyFillState {
   const SurveyFillLoading();
 }
 
-/// The survey isn't in the local cache (e.g. deep link to a stale id, or
-/// the cache was cleared). The screen shows a friendly "go back" state.
+/// The survey couldn't be opened — either it isn't in the local cache and
+/// there's no connection to fetch it (deep link to a stale id, cache
+/// cleared), or the backend explicitly rejected it (e.g. `{"message": "La
+/// encuesta no existe o no tienes permiso para acceder a ella."}` — no
+/// longer assigned to this encuestador). [message] carries that specific
+/// reason when known; the screen falls back to a generic one otherwise.
 class SurveyFillNotFound extends SurveyFillState {
-  const SurveyFillNotFound();
+  const SurveyFillNotFound([this.message]);
+  final String? message;
 }
 
 class SurveyFillReady extends SurveyFillState {
@@ -77,12 +83,41 @@ class SurveyFillReady extends SurveyFillState {
   final bool justSubmitted;
 
   SurveySection get currentSection => survey.sections[currentSectionIndex];
-  List<SurveyQuestion> get currentQuestions => currentSection.questions;
+
+  /// [Survey.reachableQuestionIds] recomputed from the live answers — small
+  /// enough (one flat walk over the survey's top-level questions) that
+  /// there's no need to cache it, and recomputing means a changed earlier
+  /// answer instantly updates which questions show here, no extra state to
+  /// keep in sync.
+  List<String> get _reachablePath => survey.reachableQuestionIds(answers);
+
+  /// This section's questions, filtered down to whichever are actually
+  /// reachable given the current answers — a fired [LogicJump] can skip a
+  /// question that structurally sits right here (e.g. two follow-ups after
+  /// a yes/no, only one of which applies), so this is never just
+  /// `currentSection.questions` unfiltered.
+  List<SurveyQuestion> get currentQuestions {
+    final reachable = _reachablePath.toSet();
+    return currentSection.questions.where((q) => reachable.contains(q.id)).toList();
+  }
+
   int get sectionNumber => currentSectionIndex + 1;
   int get totalSections => survey.sections.length;
 
   bool get isFirstSection => sectionPath.length <= 1;
-  bool get isLastSection => currentSectionIndex == totalSections - 1;
+
+  /// True once no reachable question lies beyond this section's own —
+  /// i.e. there's nowhere left for [SurveyFillController.goNext] to go,
+  /// whether that's because this really is the last section or because
+  /// every section after it got jumped past entirely.
+  bool get isLastSection {
+    final ownIds = currentQuestions.map((q) => q.id).toSet();
+    if (ownIds.isEmpty) return true;
+    final reachable = _reachablePath;
+    final lastOwnIndex = reachable.lastIndexWhere(ownIds.contains);
+    return lastOwnIndex == -1 || lastOwnIndex == reachable.length - 1;
+  }
+
   double get progress => totalSections == 0 ? 0 : (currentSectionIndex + 1) / totalSections;
 
   /// [SurveyQuestion.validate] reads any relevant free-text answers itself
@@ -135,7 +170,15 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
 
   Future<void> _init() async {
     final repo = _ref.read(surveyRepositoryProvider);
-    final survey = await repo.getSurvey(_args.surveyId);
+    Survey? survey;
+    try {
+      survey = await repo.getSurvey(_args.surveyId);
+    } on AppFailure catch (failure) {
+      // A definitive backend rejection (see [SurveyRepositoryImpl.getSurvey])
+      // — surface its exact message instead of the generic "not found" copy.
+      state = SurveyFillNotFound(failure.message);
+      return;
+    }
     if (survey == null || survey.sections.isEmpty) {
       state = const SurveyFillNotFound();
       return;
@@ -206,44 +249,30 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
     if (after is SurveyFillReady) state = after.copyWith(isSaving: false);
   }
 
-  /// If any answered question in [section] carries a [LogicJump] whose
-  /// condition matches what was actually selected, resolve it to a target
-  /// section index. The first matching jump (in question order) wins when
-  /// more than one could fire — ties aren't expected in practice, but this
-  /// keeps the result deterministic. Returns null when nothing fires (or a
-  /// jump's target question can't be found), meaning "just go to the next
-  /// section".
-  int? _jumpTargetSectionFor(SurveyFillReady state, SurveySection section) {
-    for (final question in section.questions) {
-      if (question.logicJumps.isEmpty) continue;
-      final answer = state.answers[question.id];
-      final List<String?> selectedIds =
-          answer is Iterable ? answer.map((v) => v?.toString()).toList() : [answer?.toString()];
-      for (final jump in question.logicJumps) {
-        if (!selectedIds.contains(jump.conditionOptionId)) continue;
-        final targetSection = state.survey.sectionIndexForQuestion(jump.targetQuestionId);
-        if (targetSection != null) return targetSection;
-      }
-    }
-    return null;
-  }
-
-  /// Validates every question in the current section and advances if they
-  /// all pass — following a [LogicJump] when one fires, otherwise moving to
-  /// the next section in order. Returns false (and surfaces validation
+  /// Validates every *reachable* question in the current section (skipped
+  /// ones — see [SurveyFillReady.currentQuestions] — were never shown, so
+  /// they're rightly excluded) and advances to whichever section holds the
+  /// next reachable question after them, following [LogicJump]s wherever
+  /// they land (same section or a later one — see
+  /// [Survey.reachableQuestionIds]). Returns false (and surfaces validation
   /// messages inline) if the current section has an invalid answer.
   bool goNext() {
     final current = state;
     if (current is! SurveyFillReady) return false;
-    final hasError = current.currentQuestions.any((q) => q.validate(current.answers[q.id], textAnswers: current.answers) != null);
+    final questions = current.currentQuestions;
+    final hasError = questions.any((q) => q.validate(current.answers[q.id], textAnswers: current.answers) != null);
     if (hasError) {
       state = current.copyWith(showValidation: true);
       return false;
     }
     if (current.isLastSection) return false;
 
-    final jumpTarget = _jumpTargetSectionFor(current, current.currentSection);
-    final nextIndex = jumpTarget ?? current.currentSectionIndex + 1;
+    final reachable = current._reachablePath;
+    final lastOwnId = questions.isEmpty ? null : questions.last.id;
+    final lastOwnIndex = lastOwnId == null ? -1 : reachable.indexOf(lastOwnId);
+    final nextId = (lastOwnIndex != -1 && lastOwnIndex + 1 < reachable.length) ? reachable[lastOwnIndex + 1] : null;
+    final nextIndex = nextId == null ? null : current.survey.sectionIndexForQuestion(nextId);
+    if (nextIndex == null) return false; // nothing reachable left to answer
 
     // If the user went back and changed an earlier answer, this may now
     // take a different path than before — drop whatever path suffix was
@@ -265,20 +294,21 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
     state = current.copyWith(currentSectionIndex: path.last, sectionPath: path, showValidation: false);
   }
 
-  /// Validates every question on the path actually taken (sections skipped
-  /// via a logic jump were never shown, so they're rightly excluded) before
-  /// submitting; jumps to the first section with an invalid question if any
-  /// fails. Returns true only when the response was actually queued for
-  /// submission.
+  /// Validates every reachable question (questions skipped via a logic
+  /// jump were never shown, so they're rightly excluded — see
+  /// [Survey.reachableQuestionIds]) before submitting; jumps to the section
+  /// holding the first invalid one if any fails. Returns true only when the
+  /// response was actually queued for submission.
   Future<bool> submit() async {
     final current = state;
     if (current is! SurveyFillReady) return false;
 
-    for (final sectionIndex in current.sectionPath) {
-      final hasError = current.survey.sections[sectionIndex].questions.any(
-        (q) => q.validate(current.answers[q.id], textAnswers: current.answers) != null,
-      );
-      if (hasError) {
+    final byId = {for (final q in current.survey.allQuestions) q.id: q};
+    for (final id in current._reachablePath) {
+      final question = byId[id];
+      if (question == null) continue;
+      if (question.validate(current.answers[id], textAnswers: current.answers) != null) {
+        final sectionIndex = current.survey.sectionIndexForQuestion(id) ?? current.currentSectionIndex;
         state = current.copyWith(currentSectionIndex: sectionIndex, showValidation: true);
         return false;
       }

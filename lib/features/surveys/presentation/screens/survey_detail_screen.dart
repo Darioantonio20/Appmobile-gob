@@ -32,7 +32,15 @@ class SurveyDetailScreen extends ConsumerWidget {
       appBar: const BrandAppBar(title: Text('Detalle de la encuesta')),
       body: surveyAsync.when(
         loading: () => const LoadingView(),
-        error: (error, _) => ErrorStateView(failure: AppFailure.unknown(null, error)),
+        // `surveyByIdProvider` -> `getSurvey` throws the [AppFailure] itself
+        // for a definitive backend rejection (see
+        // `SurveyRepositoryImpl.getSurvey`) — unwrap it so its exact
+        // message (e.g. "no existe o no tienes permiso") shows verbatim
+        // instead of a generic one.
+        error: (error, _) => ErrorStateView(
+          failure: error is AppFailure ? error : AppFailure.unknown(null, error),
+          onRetry: () => ref.invalidate(surveyByIdProvider(surveyId)),
+        ),
         data: (survey) {
           if (survey == null) {
             return const EmptyStateView(

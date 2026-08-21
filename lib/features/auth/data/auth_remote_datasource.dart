@@ -27,11 +27,15 @@ class AuthRemoteDataSource {
     return (token: token, user: User.fromJson(userJson));
   }
 
-  /// Revokes the current token server-side. Best-effort from the caller's
-  /// side (see [AuthRepositoryImpl.logout]) — local session clearing never
-  /// waits on this succeeding, since the user should always be able to log
-  /// out locally even offline.
-  Future<void> logout() => _dio.post<void>(ApiEndpoints.logout);
+  /// Revokes the current token server-side and returns the backend's own
+  /// confirmation message (`{ message: "Sesión cerrada exitosamente." }`).
+  /// Best-effort from the caller's side (see [AuthRepositoryImpl.logout]) —
+  /// local session clearing never waits on this succeeding, since the user
+  /// should always be able to log out locally even offline.
+  Future<String?> logout() async {
+    final response = await _dio.post<Map<String, dynamic>>(ApiEndpoints.logout);
+    return response.data?['message'] as String?;
+  }
 }
 
 final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>((ref) {

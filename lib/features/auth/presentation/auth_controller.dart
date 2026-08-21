@@ -28,9 +28,19 @@ class AuthController extends Notifier<User?> {
   }
 
   Future<void> logout() async {
-    await ref.read(authRepositoryProvider).logout();
+    final message = await ref.read(authRepositoryProvider).logout();
     state = null;
+    // The login screen consumes and clears this once (see its `ref.listen`)
+    // — offline logout still succeeds locally, just without this message.
+    if (message != null) ref.read(logoutMessageProvider.notifier).state = message;
   }
 }
 
 final authControllerProvider = NotifierProvider<AuthController, User?>(AuthController.new);
+
+/// One-shot feedback from the last [AuthController.logout] that actually
+/// reached the server — the login screen shows it once (a `SnackBar`, since
+/// this is confirmation, not something the user needs to keep reading) and
+/// clears it back to `null` right after, so it never reappears on a later
+/// rebuild or hot restart.
+final logoutMessageProvider = StateProvider<String?>((ref) => null);

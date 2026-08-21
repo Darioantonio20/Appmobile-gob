@@ -75,30 +75,50 @@ pregunta por pregunta — agrupa por sección en la barra de progreso
 ("Sección 2 de 3 · Tu experiencia").
 
 El backend no envía un tipo de pregunta explícito y legible (`type` llega
-como un código `"TR-02"`.."TR-08"` sin documentar) — `SurveyQuestion.fromJson`
+como un código `"TR-01"`.."TR-08"` sin documentar) — `SurveyQuestion.fromJson`
 lo **infiere de la estructura** (¿tiene opciones? ¿tiene `sub_questions`?
-¿tiene rango numérico?), documentado con la tabla de evidencia completa en
-`lib/features/surveys/domain/survey.dart`. Dos de los ocho códigos
-(`TR-01`, `TR-07`) nunca aparecieron en el ejemplo — uno de ellos se
-asume tentativamente como fecha; **confirma con el backend cuál es el
-código real de una pregunta de fecha** si el llenado del calendario no
-aparece donde debería.
+¿tiene rango numérico? ¿tiene `min_length`?), documentado con la tabla de
+evidencia completa en `lib/features/surveys/domain/survey.dart`. Ya se
+confirmó contra una respuesta real de `GET /surveys/{id}` qué son `TR-01`
+(texto libre, sin opciones, con `min_length`) y `TR-07` (opción única, con
+`options`) — una suposición anterior de que uno de los dos era una pregunta
+de fecha quedó descartada; hoy ningún código TR-01..TR-08 mapea a fecha.
 
 También soportado: **lógica de salto condicional** (`logic_jumps` —
-seleccionar cierta opción salta directamente a otra sección, saltándose
-las de en medio) y **matriz Likert** (una pregunta con `sub_questions` +
-opciones = tabla de filas × escala compartida; tarjetas apiladas en
-teléfono, tabla real en tablet).
+seleccionar cierta opción salta directamente a otra pregunta, en la misma
+sección o en una posterior) y **matriz Likert** (una pregunta con
+`sub_questions` + opciones = tabla de filas × escala compartida; tarjetas
+apiladas en teléfono, tabla real en tablet).
+
+Un salto condicional se resuelve pregunta por pregunta, no solo
+sección por sección (`Survey.reachableQuestionIds`): dos preguntas
+alternativas justo después de la que pregunta (p. ej. "¿Quieres ir al cine
+conmigo?" → Sí lleva a "¿Qué película?", No lleva a "¿Por qué no?") se
+tratan como mutuamente excluyentes — ambas quedan ocultas hasta que se
+responde la pregunta que decide, y solo se muestra la que corresponde,
+aunque las dos estén en la misma sección y ninguna tenga su propio salto de
+regreso. El detalle de por qué hace falta esa regla (y no solo "saltar al
+destino") está documentado en el comentario de `reachableQuestionIds`.
 
 ## Backend
 
 Ya conectado contra la API real (Laravel + Sanctum), documentada en
-`lib/core/network/api_endpoints.dart`: login, listado y detalle de
-encuestas confirmados contra ejemplos reales. **El envío de una encuesta
-llena (`POST /surveys/{id}/responses`) sigue siendo un contrato supuesto**
-— esa parte de la documentación nunca llegó — así que confirma esa forma
-con el backend cuando esté lista; solo hay que tocar
-`SurveyRemoteDataSource.submitResponse`.
+`lib/core/network/api_endpoints.dart`: login, logout, listado y detalle de
+encuestas, y el envío de una encuesta llena (`POST /surveys/sync`), todos
+confirmados contra ejemplos reales (la colección Bruno del equipo).
+
+- **Cierre de sesión**: `POST /logout` revoca el token en el servidor y
+  regresa `{ message: "Sesión cerrada exitosamente." }` — el mensaje se
+  muestra una vez, como `SnackBar`, al volver a la pantalla de login
+  (`logoutMessageProvider`). Es best-effort: si no hay conexión, la sesión
+  se cierra localmente igual, solo sin ese mensaje.
+- **Encuesta sin acceso**: si `GET /surveys/{id}` responde con un rechazo
+  explícito (`{"message": "La encuesta no existe o no tienes permiso para
+  acceder a ella.", "errors": {...}}`), ese mensaje se muestra tal cual en
+  vez de caer a una copia local desactualizada o a un "no encontrado"
+  genérico — ver el comentario de `SurveyRepositoryImpl.getSurvey` para la
+  distinción entre esto (rechazo del backend) y una falla de conectividad
+  (esa sí cae al caché local, modo offline-first normal).
 
 Por default (`AppConstants.apiBaseUrl`) apunta a `http://10.0.2.2:8000/api`
 — tu Laravel local (`localhost:8000`) visto desde el emulador de Android.
@@ -138,10 +158,9 @@ lateral.
 
 ## Qué falta / próximos pasos sugeridos
 
-- Confirmar el contrato real de `POST /surveys/{id}/responses` (ver
-  sección Backend arriba) — hoy es un supuesto razonable, no confirmado.
-- Confirmar qué código `type` (`TR-01` o `TR-07`) es en realidad una
-  pregunta de fecha (ver Estructura de una encuesta arriba).
+- Ningún código `TR-01`..`TR-08` mapea hoy a una pregunta de fecha (ver
+  Estructura de una encuesta arriba) — si el backend agrega una, confirmar
+  su código real; es un caso más en la tabla de `_inferType`.
 - Pantalla "olvidé mi contraseña" si el backend la soporta.
 - Captura de foto por pregunta, si alguna encuesta la necesita — mismo
   patrón que los demás `QuestionType`.

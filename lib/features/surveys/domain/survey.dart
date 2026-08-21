@@ -1,31 +1,35 @@
 import 'package:flutter/foundation.dart';
 
 /// Rendering type inferred for a question. The real backend doesn't send
-/// one of these directly — it sends a `type` code (`"TR-02"`..`"TR-08"` in
-/// every payload seen so far, with gaps at TR-01/TR-07) whose exact meaning
-/// isn't documented. [SurveyQuestion.fromJson] infers this from *structure*
-/// instead (has options? has sub_questions? has a numeric range?), which is
-/// unambiguous for every example seen:
+/// one of these directly — it sends a `type` code (`"TR-01"`..`"TR-08"`)
+/// whose exact meaning isn't documented. [SurveyQuestion.fromJson] infers
+/// this from *structure* instead (has options? has sub_questions? has a
+/// numeric range? has a min_length?), which is unambiguous for every
+/// example seen, including a real `GET /surveys/{id}` response confirming
+/// TR-01 and TR-07 (see below — an earlier guess here had both as [date],
+/// now disproven):
 ///
 /// | API `type` | shape observed                          | inferred as     |
 /// |---|---|---|
-/// | TR-03, TR-04 | `options: [...]`, no `sub_questions`  | [singleChoice]   |
-/// | TR-05        | no options, `min_value` set           | [numeric]        |
-/// | TR-02        | no options, no numeric hints           | [longText]       |
+/// | TR-03, TR-04, TR-07 | `options: [...]`, no `sub_questions` | [singleChoice] |
+/// | TR-05        | no options, `min_value`/`max_value`/`max_decimals` set | [numeric] |
+/// | TR-01        | no options, `min_length` set, no `max_length` | [longText] |
+/// | TR-02        | no options, no numeric/length hints    | [longText]       |
 /// | TR-08        | `options` (the scale) + `sub_questions` | [likertMatrix] |
-/// | TR-06        | only ever seen nested as a sub_question | folded into the parent's [SurveyQuestion.matrixRows], never rendered top-level |
+/// | TR-06        | only ever seen nested as a sub_question, no options of its own | folded into the parent's [SurveyQuestion.matrixRows], never rendered top-level |
 ///
-/// No multiple-choice example was present in the sample payload — nothing
-/// currently maps to [multipleChoice]. If a backend type turns out to mean
-/// "select several", that's one more structural check to add here.
+/// No multiple-choice example was present in any sample payload — nothing
+/// currently maps to [multipleChoice] (a `TR-07` question with more than
+/// one `option.isCorrect` was seen, but that's scoring metadata, not proof
+/// the UI should allow multi-select — see [QuestionOption.isCorrect]). If a
+/// backend type turns out to mean "select several", that's one more
+/// structural check to add here.
 ///
-/// [date] is a similar best-effort guess: `TR-01` and `TR-07` are the only
-/// two codes never seen in a sample payload (every other TR-02..TR-08 code
-/// showed up with a clear structural role), so one of them is a plausible
-/// home for a date question — [SurveyQuestion._inferType] maps either to
-/// [date] when the question otherwise looks like plain text (no options, no
-/// numeric hint). If that guess is wrong, confirm the real code with the
-/// backend and it's a one-line fix.
+/// [date] has no confirmed backend code as of the payload above — every
+/// TR-01..TR-08 code observed maps to one of the rows in the table. It's
+/// kept for a future date-type question (built as a custom tap-based
+/// control, never `showDatePicker` — see the project's `flutter-ui-review`
+/// skill) and, until a real code is confirmed, nothing infers it.
 enum QuestionType { singleChoice, multipleChoice, numeric, shortText, longText, likertMatrix, date }
 
 @immutable
@@ -76,12 +80,13 @@ class QuestionOption {
 }
 
 /// "If the user picked [conditionOptionId] on this question, jump straight
-/// to [targetQuestionId]" — server-authored skip logic. See
-/// `SurveyFillController` for how this is applied: because this app's fill
-/// flow shows a whole section at a time (not one question at a time), a
-/// firing jump moves the flow to whichever *section* contains the target
-/// question, skipping any sections in between, rather than hiding
-/// individual questions within a section.
+/// to [targetQuestionId]" — server-authored skip logic. A real payload
+/// confirmed jumps landing both *within* the same section (skipping one of
+/// two questions right after the trigger) and, in principle, into a later
+/// one — so this can't be resolved at section granularity alone. See
+/// [Survey.reachableQuestionIds], which walks the whole survey
+/// question-by-question and is what actually decides which questions get
+/// shown/validated, in or across sections.
 @immutable
 class LogicJump {
   const LogicJump({required this.conditionOptionId, required this.targetQuestionId, this.description});
@@ -360,6 +365,83 @@ class Survey {
   int? sectionIndexForQuestion(String questionId) {
     for (var i = 0; i < sections.length; i++) {
       if (sections[i].questions.any((q) => q.id == questionId)) return i;
+    }
+    return null;
+  }
+
+  /// Ordered ids of the top-level questions actually reachable given
+  /// [answers], honoring every [SurveyQuestion.logicJumps] — the single
+  /// source of truth for "which questions does the user actually see",
+  /// used both to decide what to render within a section
+  /// ([SurveyFillReady.currentQuestions]) and to drive section-to-section
+  /// navigation ([SurveyFillController.goNext]).
+  ///
+  /// A real payload put two mutually-exclusive follow-ups (`26`/`27`) right
+  /// after their gating question (`25`, "¿Quieres ir al cine conmigo?" —
+  /// Sí→26, No→27), both in the *same* section, with no jump defined on
+  /// `26` itself to skip past `27`. A plain "jump to target, else next in
+  /// order" walk would show both once either branch was taken — this needs
+  /// one more rule: every question named as *any* jump's target anywhere in
+  /// the survey is "gated" — excluded from the default "next in order"
+  /// fallback (whether or not its own gating question has fired yet) and
+  /// only ever shown by actually being the *chosen* target of a fired jump.
+  /// That's what makes `26` and `27` mutually exclusive here even though
+  /// neither carries its own outgoing jump, and it's also why an unanswered
+  /// gate hides every one of its listed targets rather than defaulting to
+  /// showing the structurally-next one — with several questions on screen
+  /// at once (this app never shows one question at a time), showing an
+  /// unresolved branch's target before its condition is actually met would
+  /// be misleading.
+  ///
+  /// Walks forward from the first question in survey order. At each step:
+  /// if the question just visited has an answer matching one of its own
+  /// jumps' `conditionOptionId`, the walk continues from that jump's
+  /// `targetQuestionId` — wherever it is, same section or a later one —
+  /// regardless of gating (an explicitly chosen target is never hidden).
+  /// Otherwise it continues from the next non-gated question in order.
+  /// Guards against a malformed jump cycle by stopping the walk the moment
+  /// it would revisit a question.
+  List<String> reachableQuestionIds(Map<String, Object?> answers) {
+    final all = allQuestions;
+    if (all.isEmpty) return const [];
+    final byId = {for (final q in all) q.id: q};
+    final gatedIds = <String>{for (final q in all) for (final jump in q.logicJumps) jump.targetQuestionId};
+
+    final visited = <String>{};
+    final path = <String>[];
+    String? currentId = all.first.id;
+    while (currentId != null && visited.add(currentId)) {
+      path.add(currentId);
+      final question = byId[currentId];
+      if (question == null) break;
+      currentId = _fireJump(question, answers) ?? _nextVisibleQuestionIdAfter(all, currentId, gatedIds);
+    }
+    return path;
+  }
+
+  /// Resolves [question]'s [LogicJump]s against [answers]; the first one
+  /// whose `conditionOptionId` matches the selected value(s) wins (ties
+  /// aren't expected in practice). Returns null when the question has no
+  /// jumps, isn't answered yet, or nothing matches — meaning "no jump
+  /// fires, walk continues in order".
+  static String? _fireJump(SurveyQuestion question, Map<String, Object?> answers) {
+    if (question.logicJumps.isEmpty) return null;
+    final answer = answers[question.id];
+    final selectedIds = answer is Iterable ? answer.map((v) => v?.toString()).toList() : [answer?.toString()];
+    for (final jump in question.logicJumps) {
+      if (selectedIds.contains(jump.conditionOptionId)) return jump.targetQuestionId;
+    }
+    return null;
+  }
+
+  /// The next question after [id] in survey order that isn't [gatedIds] —
+  /// skipping over any question that's only meant to appear as someone's
+  /// explicitly-chosen jump target (see [reachableQuestionIds]).
+  static String? _nextVisibleQuestionIdAfter(List<SurveyQuestion> all, String id, Set<String> gatedIds) {
+    final index = all.indexWhere((q) => q.id == id);
+    if (index == -1) return null;
+    for (var i = index + 1; i < all.length; i++) {
+      if (!gatedIds.contains(all[i].id)) return all[i].id;
     }
     return null;
   }
