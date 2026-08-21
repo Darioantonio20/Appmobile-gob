@@ -508,7 +508,7 @@ class _DatePartDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<int>(
-      initialValue: value,
+      value: value,
       isExpanded: true,
       hint: const Text('—'),
       decoration: InputDecoration(
@@ -618,14 +618,12 @@ class _MatrixField extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   child: Center(
-                    child: RadioGroup<String>(
+                    child: Radio<String>(
+                      value: option.id,
                       groupValue: value[row.id],
                       onChanged: (v) {
                         if (v != null) _select(row.id, v);
                       },
-                      child: Radio<String>(
-                        value: option.id,
-                      ),
                     ),
                   ),
                 ),
