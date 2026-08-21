@@ -12,6 +12,16 @@ import '../domain/user.dart';
 /// the widget tree first builds, this already reflects any session restored
 /// from secure storage — no splash/loading state needed here.
 class AuthController extends Notifier<User?> {
+  /// Re-entrancy guard: [DioClient]'s `onUnauthorized` hook calls [logout]
+  /// straight from a Dio error interceptor, so a burst of requests that all
+  /// 401 at once (e.g. several in flight when a token goes stale) would
+  /// otherwise fire several concurrent, redundant logout attempts. Combined
+  /// with excluding `/logout`'s own 401 in [DioClient] (see its comment),
+  /// this is what actually stops that from compounding into an infinite
+  /// loop — confirmed live as hundreds of `POST /logout` calls per second,
+  /// with login never even reachable.
+  bool _loggingOut = false;
+
   @override
   User? build() => null;
 
@@ -28,11 +38,17 @@ class AuthController extends Notifier<User?> {
   }
 
   Future<void> logout() async {
-    final message = await ref.read(authRepositoryProvider).logout();
-    state = null;
-    // The login screen consumes and clears this once (see its `ref.listen`)
-    // — offline logout still succeeds locally, just without this message.
-    if (message != null) ref.read(logoutMessageProvider.notifier).state = message;
+    if (_loggingOut) return;
+    _loggingOut = true;
+    try {
+      final message = await ref.read(authRepositoryProvider).logout();
+      state = null;
+      // The login screen consumes and clears this once (see its `ref.listen`)
+      // — offline logout still succeeds locally, just without this message.
+      if (message != null) ref.read(logoutMessageProvider.notifier).state = message;
+    } finally {
+      _loggingOut = false;
+    }
   }
 }
 

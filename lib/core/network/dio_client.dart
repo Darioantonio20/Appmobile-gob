@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../constants/app_constants.dart';
 import '../utils/app_logger.dart';
+import 'api_endpoints.dart';
 import 'retry_interceptor.dart';
 
 /// Called by the auth interceptor to attach the current token, if any.
@@ -43,7 +44,17 @@ class DioClient {
           handler.next(options);
         },
         onError: (error, handler) {
-          if (error.response?.statusCode == 401) {
+          // Guard against a real, previously-reproduced infinite loop: a
+          // stale/invalid stored token means *every* request 401s,
+          // including `POST /logout` itself once `onUnauthorized` fires and
+          // calls it — and that 401 would otherwise re-trigger
+          // `onUnauthorized` again, which calls logout again, forever
+          // (confirmed live: hundreds of `POST /logout` calls per second,
+          // login never even reachable). Logout's own failure is never a
+          // reason to log out again — it's already happening — so its 401
+          // is excluded here.
+          final isLogoutRequest = error.requestOptions.path == ApiEndpoints.logout;
+          if (error.response?.statusCode == 401 && !isLogoutRequest) {
             onUnauthorized?.call();
           }
           handler.next(error);
