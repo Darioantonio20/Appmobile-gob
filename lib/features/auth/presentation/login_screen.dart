@@ -60,6 +60,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       failure: (failure) => setState(() {
         _isLoading = false;
         _errorMessage = failure.message;
+        // Credenciales rechazadas — el usuario tiene que volver a
+        // escribirlas de cero, no corregir un campo a medias, así que ambos
+        // se limpian en vez de dejar el correo/contraseña incorrectos
+        // sentados ahí.
+        _emailController.clear();
+        _passwordController.clear();
       }),
     );
     if (result.isFailure) setState(() => _isLoading = false);
