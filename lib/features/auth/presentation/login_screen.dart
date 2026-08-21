@@ -96,16 +96,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: AppSpacing.lg),
+                        // The Secretaría lockup used to be a small footer
+                        // mark down near the help text — moved up here as
+                        // the sole hero image (a bit bigger than its old
+                        // 52px footer size) and the "Humanismo que
+                        // Transforma" mark that used to be here was
+                        // dropped, per explicit design feedback.
                         StaggeredFadeSlideIn(
                           index: 0,
                           beginOffset: const Offset(0, 0.15),
                           child: Center(
                             child: Image.asset(
-                              BrandAssets.humanismoQueTransforma,
-                              height: 148,
+                              BrandAssets.secretaria,
+                              height: 128,
                               fit: BoxFit.contain,
                               semanticLabel:
-                                  'Humanismo que Transforma — Gobierno de Chiapas 2024–2030',
+                                  'Secretaría Ejecutiva del Sistema Anticorrupción del Estado de Chiapas',
                             ),
                           ),
                         ),
@@ -272,22 +278,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                             textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xl),
-                        // Full institutional attribution — the humanismo mark up top
-                        // is the app's own recognizable brand; this closes the loop
-                        // with exactly which office is behind it.
-                        StaggeredFadeSlideIn(
-                          index: 6,
-                          child: Center(
-                            child: Image.asset(
-                              BrandAssets.secretaria,
-                              height: 52,
-                              fit: BoxFit.contain,
-                              semanticLabel:
-                                  'Secretaría Ejecutiva del Sistema Anticorrupción del Estado de Chiapas',
-                            ),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.lg),

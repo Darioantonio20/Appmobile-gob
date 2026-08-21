@@ -7,6 +7,7 @@ import '../../../core/theme/brand_assets.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/brand_app_bar.dart';
+import '../../../core/widgets/brand_grecas_accent.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import '../../surveys/presentation/survey_providers.dart';
 import 'auth_controller.dart';
@@ -40,56 +41,98 @@ class ProfileScreen extends ConsumerWidget {
               beginOffset: const Offset(0, 0.1),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: AppSpacing.xl,
-                  horizontal: AppSpacing.md,
-                ),
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                  // Tertiary (brand red), not primary (green) — the "green
-                  // top" was explicit feedback to become the institutional
-                  // red instead; see BrandAppBar for the same swap.
-                  color: theme.colorScheme.tertiary,
+                  // Primary (brand green) here, not tertiary/red — per
+                  // explicit feedback on this screen specifically, paired
+                  // with `BrandAppBar` and the stats card below both now
+                  // using secondary (brand pink) instead of tertiary too.
+                  color: theme.colorScheme.primary,
                 ),
-                child: Column(
+                child: Stack(
+                  // Explicit — `Stack` otherwise pins its non-positioned
+                  // child to the top-start corner instead of centering it,
+                  // which is what made the avatar/name/email read as
+                  // not-quite-centered.
+                  alignment: Alignment.center,
                   children: [
-                    // The extra ring container (surface-colored, slightly bigger
-                    // than the avatar) is what makes the avatar read as "sitting
-                    // on" the header instead of blending into it.
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: theme.colorScheme.surface,
+                    // A horizontal grecas band along the bottom edge — this
+                    // screen read as too plain/flat; the same official
+                    // texture used on the login screen (just rotated to run
+                    // sideways here) ties the two together instead of
+                    // introducing a new decorative device. `clipBehavior`
+                    // above keeps its tiling from spilling past the card's
+                    // own rounded corners. Opacity is much higher than the
+                    // login screen's version (a background wash on a
+                    // near-white page) — at that low an alpha here, the
+                    // pattern's own colors washed out into the solid green
+                    // behind it instead of reading as the actual grecas
+                    // colors, which is the point of having it at all.
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: BrandGrecasAccent.horizontal(thickness: 34, opacity: 0.9),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.xl,
+                        horizontal: AppSpacing.md,
                       ),
-                      child: CircleAvatar(
-                        radius: 44,
-                        backgroundColor: theme.colorScheme.tertiaryContainer,
-                        child: Text(
-                          _initials(user?.name),
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            color: theme.colorScheme.onTertiaryContainer,
-                            fontWeight: FontWeight.bold,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // The extra ring container (surface-colored, slightly
+                          // bigger than the avatar) is what makes the avatar read
+                          // as "sitting on" the header instead of blending into
+                          // it. The elastic scale-in on top gives the header a
+                          // focal point instead of just fading in flat with
+                          // everything else.
+                          TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 550),
+                            curve: Curves.elasticOut,
+                            builder: (context, value, child) => Transform.scale(scale: value, child: child),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: theme.colorScheme.surface,
+                              ),
+                              child: CircleAvatar(
+                                radius: 44,
+                                backgroundColor: theme.colorScheme.primaryContainer,
+                                child: Text(
+                                  _initials(user?.name),
+                                  style: theme.textTheme.headlineMedium?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      user?.name ?? 'Encuestador',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: theme.colorScheme.onTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      user?.email ?? '',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onTertiary.withValues(
-                          alpha: 0.85,
-                        ),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            user?.name ?? 'Encuestador',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: theme.colorScheme.onPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            user?.email ?? '',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onPrimary.withValues(
+                                alpha: 0.85,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -99,64 +142,88 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xl),
             StaggeredFadeSlideIn(
               index: 1,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.lg,
-                    horizontal: AppSpacing.md,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: theme.colorScheme.primaryContainer,
-                        ),
-                        child: Icon(
-                          Icons.cloud_done_rounded,
-                          color: theme.colorScheme.onPrimaryContainer,
-                          size: 28,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.lg,
+                  horizontal: AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                  // Secondary (brand pink/magenta, `C90166`) — not tertiary
+                  // (`AE192D`, red); tertiary stays reserved for danger/
+                  // destructive contexts (see the logout confirm dialog
+                  // below, and `AppColors.danger`) rather than doubling as
+                  // an institutional accent here too. Everything on top is
+                  // white/`onSecondary` for contrast against that solid pink.
+                  color: theme.colorScheme.secondary,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // The count in its own circle badge (semi-transparent
+                    // white over the pink, not a second solid color — keeps
+                    // this flat/on-brand rather than introducing a third
+                    // surface color) reads as a stat, not just a stray
+                    // number sitting next to an icon.
+                    Container(
+                      width: 72,
+                      height: 72,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.colorScheme.onSecondary.withValues(alpha: 0.16),
+                        border: Border.all(color: theme.colorScheme.onSecondary.withValues(alpha: 0.4), width: 1.5),
+                      ),
+                      child: TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: syncedCount),
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOut,
+                        builder: (context, value, _) => Text(
+                          '$value',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            color: theme.colorScheme.onSecondary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.md),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TweenAnimationBuilder<int>(
-                            tween: IntTween(begin: 0, end: syncedCount),
-                            duration: const Duration(milliseconds: 600),
-                            curve: Curves.easeOut,
-                            builder: (context, value, _) => Text(
-                              '$value',
-                              style: theme.textTheme.headlineMedium
-                                  ?.copyWith(color: theme.colorScheme.secondary),
-                            ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_done_rounded, color: theme.colorScheme.onSecondary, size: 18),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          syncedCount == 1 ? 'Encuesta enviada' : 'Encuestas enviadas',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSecondary,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Text(
-                            syncedCount == 1
-                                ? 'Encuesta enviada'
-                                : 'Encuestas enviadas',
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: theme.colorScheme.primary),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.xxl),
             StaggeredFadeSlideIn(
               index: 2,
-              child: AppButton(
-                label: 'Cerrar sesión',
-                icon: Icons.logout_rounded,
-                variant: AppButtonVariant.secondary,
-                onPressed: () => _confirmLogout(context, ref),
+              // Narrower than a full-bleed button on purpose — this is the
+              // one destructive-ish action on the screen, and everything
+              // else here (header, stats card) already spans edge to edge,
+              // so pulling it in on the sides is what actually makes it
+              // read as a secondary, deliberate action instead of matching
+              // the primary content's weight.
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                child: AppButton(
+                  label: 'Cerrar sesión',
+                  icon: Icons.logout_rounded,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => _confirmLogout(context, ref),
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.xxl),
@@ -165,7 +232,7 @@ class ProfileScreen extends ConsumerWidget {
               child: Center(
                 child: Image.asset(
                   BrandAssets.secretaria,
-                  height: 44,
+                  height: 104,
                   fit: BoxFit.contain,
                   semanticLabel:
                       'Secretaría Ejecutiva del Sistema Anticorrupción del Estado de Chiapas',

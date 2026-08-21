@@ -66,7 +66,12 @@ class DioClient {
             handler.next(response);
           },
           onError: (error, handler) {
-            log.warning('✗ ${error.requestOptions.uri}', error.message);
+            // The response body (when there is one) is what actually says
+            // *why* — `error.message` alone is just Dio's generic "bad
+            // status code" description, e.g. useless for a 422's per-field
+            // validation errors.
+            final body = error.response?.data;
+            log.warning('✗ ${error.requestOptions.uri}', body != null ? '${error.message}\nBody: $body' : error.message);
             handler.next(error);
           },
         ),

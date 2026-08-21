@@ -35,6 +35,21 @@ class SurveyRemoteDataSource {
   /// [_buildAnswers]). The backend identifies the idempotency of a retried
   /// send by [SurveyResponse.localId] (`response_id`) — no separate header
   /// needed, unlike the earlier placeholder contract.
+  ///
+  /// `gps_latitude`/`gps_longitude`/`started_at` all turned out to be
+  /// backend-required fields — confirmed on a real submit attempt, which
+  /// 422'd with `{"gps_latitude": ["The gps latitude field is required."],
+  /// "gps_longitude": [...], "started_at": [...]}` for a response that had
+  /// none of the three (no GPS fix captured — no signal/permission — and an
+  /// older local draft predating `startedAt` always being set). Sending
+  /// `null` for any of them is therefore a guaranteed failed submit, stuck
+  /// retrying forever. [LocationService.getCurrentFix] is explicitly
+  /// best-effort and must never block finishing a survey (see its own doc
+  /// comment) — so this can't just require a real fix before allowing
+  /// submit either. `0`/now is the compromise: satisfies the backend's
+  /// required-field rule without blocking the surveyor, and reads as an
+  /// obviously-a-placeholder value server-side rather than a plausible but
+  /// wrong coordinate.
   Future<void> submitResponse(Survey survey, SurveyResponse response) async {
     await _dio.post<Map<String, dynamic>>(
       ApiEndpoints.submitResponse,
@@ -44,9 +59,9 @@ class SurveyRemoteDataSource {
         // No UI collects this yet — always empty until there's a field for
         // it. The backend's own example sends the same empty string.
         'respondent_curp': '',
-        'gps_latitude': response.latitude,
-        'gps_longitude': response.longitude,
-        'started_at': response.startedAt == null ? null : _apiDateFormat.format(response.startedAt!),
+        'gps_latitude': response.latitude ?? 0,
+        'gps_longitude': response.longitude ?? 0,
+        'started_at': _apiDateFormat.format(response.startedAt ?? response.submittedAt ?? DateTime.now()),
         'completed_at': _apiDateFormat.format(response.submittedAt ?? DateTime.now()),
         'answers': _buildAnswers(survey, response.answers),
       },

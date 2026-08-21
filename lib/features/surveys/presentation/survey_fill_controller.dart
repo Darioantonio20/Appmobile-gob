@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/location/location_service.dart';
 import '../../../core/utils/app_info.dart';
+import '../../../core/utils/app_logger.dart';
 import '../../../core/utils/result.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/survey_repository_impl.dart';
@@ -214,6 +215,14 @@ class SurveyFillController extends StateNotifier<SurveyFillState> {
   /// resolving.
   Future<void> _captureStartMetadata(String localId) async {
     final fix = await _ref.read(locationServiceProvider).getCurrentFix();
+    // Worth keeping permanently, not just for this one investigation — GPS
+    // capture is best-effort and fails silently on purpose (see
+    // LocationService's own doc comment), which is exactly why a field
+    // report of "no me tomó el GPS" needs a log line to actually diagnose
+    // instead of guessing.
+    AppLogger.of('SurveyFillController').info(
+      fix == null ? 'Sin fix de GPS para $localId (servicio/permiso/timeout).' : 'GPS capturado para $localId: ${fix.latitude}, ${fix.longitude}',
+    );
     final version = await _ref.read(appVersionProvider.future);
     await _ref.read(surveyRepositoryProvider).attachDraftMetadata(
           localId: localId,

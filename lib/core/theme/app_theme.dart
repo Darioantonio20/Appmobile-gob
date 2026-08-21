@@ -27,12 +27,32 @@ class AppTheme {
     final tertiarySeeded = ColorScheme.fromSeed(seedColor: AppColors.brandTertiary, brightness: brightness);
 
     final colorScheme = primarySeeded.copyWith(
-      secondary: secondarySeeded.primary,
-      onSecondary: secondarySeeded.onPrimary,
+      // `secondary` is the exact brand hex (`AppColors.brandSecondary`,
+      // `C90166`) rather than `secondarySeeded.primary` — explicit feedback
+      // that the Material-tonal color didn't match the brand swatch: Material
+      // 3's `ColorScheme.fromSeed` runs a seed through its HCT algorithm and
+      // picks a *computed tone* at a fixed lightness (~40% for light mode),
+      // which shifts the actual rendered RGB away from the literal seed hex
+      // even though the hue stays close — close enough to look "off" next to
+      // an exact reference swatch, which is exactly what was reported here.
+      // The other brand colors keep their Material-tonal derivation
+      // (unreported as an issue, and `secondaryContainer`/`onSecondaryContainer`
+      // below still use the tonal palette too — only the solid accent color
+      // itself needed to be exact).
+      secondary: AppColors.brandSecondary,
+      // White holds up against `brandSecondary` for the same reason
+      // `elevatedButtonTheme` below already assumed it does (see that
+      // comment) — kept explicit here rather than reusing the seeded
+      // `onPrimary`, which was tuned for the *tonal* color, not this exact one.
+      onSecondary: Colors.white,
       secondaryContainer: secondarySeeded.primaryContainer,
       onSecondaryContainer: secondarySeeded.onPrimaryContainer,
-      tertiary: tertiarySeeded.primary,
-      onTertiary: tertiarySeeded.onPrimary,
+      // Same fix, same reason as `secondary` above: the literal brand hex
+      // (`AppColors.brandTertiary`, `AE192D`) instead of `tertiarySeeded
+      // .primary`'s Material-computed tone, confirmed against a reference
+      // swatch to actually match this time too.
+      tertiary: AppColors.brandTertiary,
+      onTertiary: Colors.white,
       tertiaryContainer: tertiarySeeded.primaryContainer,
       onTertiaryContainer: tertiarySeeded.onPrimaryContainer,
     );

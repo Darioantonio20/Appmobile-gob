@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,14 +67,14 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
 
     return Scaffold(
       appBar: BrandAppBar(
-        title: Text(user == null ? 'Encuestas' : 'Hola, ${user.name.split(' ').first}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle_outlined),
-            tooltip: 'Mi perfil',
-            onPressed: () => context.push(RoutePaths.profile),
-          ),
-        ],
+        // Slides in from the leading edge instead of just appearing with
+        // the rest of the bar — small touch, but it's the very first thing
+        // on screen and a greeting reads better arriving than static.
+        title: StaggeredFadeSlideIn(
+          beginOffset: const Offset(-0.2, 0),
+          child: Text(user == null ? 'Encuestas' : 'Hola, ${user.name.split(' ').first}'),
+        ),
+        actions: const [_BouncyProfileButton()],
       ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -436,6 +438,44 @@ class _FilterChip extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The profile entry point pops in with a short delay then an elastic
+/// scale — arrives just after the greeting text finishes sliding in,
+/// reusing the same "pop" feel as the profile avatar and the nav bar's
+/// selected icon elsewhere in this app, rather than a third animation style
+/// for what's really the same kind of accent moment.
+class _BouncyProfileButton extends StatefulWidget {
+  const _BouncyProfileButton();
+
+  @override
+  State<_BouncyProfileButton> createState() => _BouncyProfileButtonState();
+}
+
+class _BouncyProfileButtonState extends State<_BouncyProfileButton> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 140), () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _visible ? 1 : 0.3,
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.elasticOut,
+      child: IconButton(
+        icon: const Icon(Icons.account_circle_outlined),
+        tooltip: 'Mi perfil',
+        onPressed: () => context.push(RoutePaths.profile),
       ),
     );
   }
