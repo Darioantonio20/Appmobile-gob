@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../theme/brand_assets.dart';
 
+/// Long side ÷ short side of the source asset (344×1991px) — used to give
+/// each tile a locked [AspectRatio] instead of letting `Image` derive its
+/// own height from the decoded image once it's ready (see the class doc for
+/// why that was the actual cause of the visible gaps between tiles).
+const double _grecasAspectRatio = 1991 / 344;
+
 /// Subtle background texture of the official "grecas" pattern (Mayan-inspired
 /// geometric motif), tiled along an edge of a screen or the edge of some
 /// other box (a card, a header), sitting behind real content in low opacity
@@ -35,6 +41,19 @@ import '../theme/brand_assets.dart';
 /// `OverflowBox`, so `OverflowBox` itself is only ever as wide (or tall, for
 /// the horizontal form) as [thickness] — only the tiling axis inside it is
 /// left unbounded.
+///
+/// One more real gap, this one visual: reported as visible seams between
+/// tiles, confirmed by inspecting the source asset itself — it *is*
+/// seamless, no built-in padding — so the seam wasn't the artwork. A plain
+/// `Image` with a `width` but no `height` sizes itself once the image
+/// finishes decoding, using whatever aspect ratio it reports at that
+/// moment; with the *same* asset reused across every tile, decode timing
+/// between instances isn't guaranteed to land in the same frame, and one
+/// instance settling a beat later than its neighbors is what showed up as a
+/// seam. Wrapping each tile in [AspectRatio] fixes its slot in layout
+/// immediately, synchronously, from the known 1991×344 ratio — independent
+/// of when the pixels actually arrive — so every tile's height is
+/// identical and adjacent from the very first frame.
 class BrandGrecasAccent extends StatelessWidget {
   /// A vertical strip pinned to a screen edge (the default use — the login
   /// screen's full-height background accent), tiled top-to-bottom.
@@ -81,7 +100,13 @@ class BrandGrecasAccent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tileImage = Image.asset(BrandAssets.grecas, width: thickness, fit: BoxFit.fitWidth);
+    // Locked aspect ratio, not a bare `Image` sizing itself off the decoded
+    // asset — see the class doc for why that was the actual source of the
+    // visible seams between tiles.
+    final tileImage = AspectRatio(
+      aspectRatio: 1 / _grecasAspectRatio,
+      child: Image.asset(BrandAssets.grecas, fit: BoxFit.fill),
+    );
     final tile = horizontal ? RotatedBox(quarterTurns: 1, child: tileImage) : tileImage;
     final tiles = List.generate(_tileCount, (_) => tile);
 
