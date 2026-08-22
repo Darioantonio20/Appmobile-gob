@@ -11,10 +11,8 @@ import '../../../../core/sync/sync_status.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/result.dart';
-import '../../../../core/widgets/brand_app_bar.dart';
 import '../../../../core/widgets/staggered_fade_in.dart';
 import '../../../../core/widgets/state_views.dart';
-import '../../../auth/presentation/auth_controller.dart';
 import '../../data/survey_repository_impl.dart';
 import '../../domain/survey_response.dart';
 import '../survey_providers.dart';
@@ -59,27 +57,64 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
     );
   }
 
+  Widget _buildSearchField(ThemeData theme) {
+    return TextField(
+      controller: _searchController,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Buscar encuestas…',
+        // Green prefix icon and a fully-rounded (pill) green border,
+        // overriding the app-wide input theme's magenta icon / `radiusMd`
+        // corners — the reference mockup styles *this* field specifically,
+        // and search reads better as a pill than as another rectangular
+        // form input among the survey form fields elsewhere.
+        prefixIcon: Icon(Icons.search_rounded, color: theme.colorScheme.primary),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                icon: Icon(Icons.clear_rounded, color: theme.colorScheme.primary),
+                tooltip: 'Limpiar búsqueda',
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+              ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        // Neutral placeholder, overriding the app-wide input theme's
+        // magenta `hintStyle` — that magenta is right for a survey form
+        // field the user must fill in, but here it made an optional search
+        // box shout louder than the content it filters.
+        hintStyle: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+          borderSide: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.45), width: 1.2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.8),
+        ),
+      ),
+      onChanged: (val) => setState(() => _searchQuery = val.trim()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authControllerProvider);
     final surveysAsync = ref.watch(surveysStreamProvider);
     final responsesAsync = ref.watch(allResponsesProvider);
 
+    // No app bar at all: the "Hola, {nombre}" greeting and the bar's bottom
+    // separator were removed by explicit design direction (the greeting
+    // said nothing actionable and cost a full toolbar of height on the
+    // app's busiest screen), and the profile button that shared it has
+    // since moved into the bottom nav bar with the other destinations. The
+    // content now starts at the top of the safe area.
     return Scaffold(
-      appBar: BrandAppBar(
-        // Slides in from the leading edge instead of just appearing with
-        // the rest of the bar — small touch, but it's the very first thing
-        // on screen and a greeting reads better arriving than static.
-        title: StaggeredFadeSlideIn(
-          beginOffset: const Offset(-0.2, 0),
-          child: Text(user == null ? 'Encuestas' : 'Hola, ${user.name.split(' ').first}'),
-        ),
-        actions: const [_BouncyProfileButton()],
-      ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,
-        child: surveysAsync.when(
+        child: SafeArea(
+          child: surveysAsync.when(
           loading: () => const LoadingView(message: 'Cargando encuestas…'),
           error: (error, _) => ErrorStateView(
             failure: mapNetworkError(error),
@@ -150,79 +185,42 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // No profile button here any more — it moved into the
+                      // bottom nav bar alongside "Encuestas" and
+                      // "Sincronización", where every other navigation
+                      // control already lives. That frees this whole row,
+                      // so the metrics start at the very top of the safe
+                      // area.
                       const SizedBox(height: AppSpacing.sm),
 
-                      // Metrics Banner
+                      // The stat cards *are* the filter. They used to be
+                      // read-only counts with a separate filter control
+                      // beside the search field (which opened a sheet
+                      // listing the same four options with the same four
+                      // counts) — the same information stated twice, in two
+                      // places, one of them hidden behind a tap. Making the
+                      // cards tappable collapses both into one control:
+                      // every option and its count is visible at all times,
+                      // and the active one is the one that's lit.
                       StaggeredFadeSlideIn(
                         index: 0,
-                        child: _SurveyMetricsRow(
-                          total: totalAssigned,
-                          drafts: draftsCount,
-                          completed: completedCount,
+                        child: _SurveyFilterCards(
+                          selected: _selectedFilter,
+                          counts: {
+                            _SurveyFilter.all: totalAssigned,
+                            _SurveyFilter.pending: totalAssigned - draftsCount - completedCount,
+                            _SurveyFilter.drafts: draftsCount,
+                            _SurveyFilter.completed: completedCount,
+                          },
+                          onSelected: (filter) => setState(() => _selectedFilter = filter),
                         ),
                       ),
 
                       const SizedBox(height: AppSpacing.md),
 
-                      // Search Box
-                      StaggeredFadeSlideIn(
-                        index: 1,
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar encuestas…',
-                            prefixIcon: Icon(Icons.search_rounded, color: theme.colorScheme.secondary),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear_rounded),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  )
-                                : null,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                          ),
-                          onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.sm),
-
-                      // Filter Chips
-                      StaggeredFadeSlideIn(
-                        index: 2,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _FilterChip(
-                                label: 'Todas ($totalAssigned)',
-                                selected: _selectedFilter == _SurveyFilter.all,
-                                onSelected: () => setState(() => _selectedFilter = _SurveyFilter.all),
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              _FilterChip(
-                                label: 'Pendientes (${totalAssigned - draftsCount - completedCount})',
-                                selected: _selectedFilter == _SurveyFilter.pending,
-                                onSelected: () => setState(() => _selectedFilter = _SurveyFilter.pending),
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              _FilterChip(
-                                label: 'Borradores ($draftsCount)',
-                                selected: _selectedFilter == _SurveyFilter.drafts,
-                                onSelected: () => setState(() => _selectedFilter = _SurveyFilter.drafts),
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              _FilterChip(
-                                label: 'Completadas ($completedCount)',
-                                selected: _selectedFilter == _SurveyFilter.completed,
-                                onSelected: () => setState(() => _selectedFilter = _SurveyFilter.completed),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // Search now spans the full width — the filter button
+                      // that used to sit beside it is gone (see above).
+                      StaggeredFadeSlideIn(index: 1, child: _buildSearchField(theme)),
 
                       const SizedBox(height: AppSpacing.md),
 
@@ -278,204 +276,232 @@ class _SurveyListScreenState extends ConsumerState<SurveyListScreen> {
             );
           },
         ),
+        ),
       ),
     );
   }
 }
 
-class _SurveyMetricsRow extends StatelessWidget {
-  const _SurveyMetricsRow({
-    required this.total,
-    required this.drafts,
-    required this.completed,
+
+extension on _SurveyFilter {
+  String get label => switch (this) {
+        _SurveyFilter.all => 'Todas',
+        _SurveyFilter.pending => 'Pendientes',
+        _SurveyFilter.drafts => 'Borradores',
+        _SurveyFilter.completed => 'Enviadas',
+      };
+
+  /// `all` gets a grid glyph — "everything at once" rather than any one
+  /// state. The other three reuse the exact icon their status already
+  /// carries on the survey cards and in the sync center, so a filter and
+  /// the rows it produces are visibly the same thing.
+  IconData get icon => switch (this) {
+        _SurveyFilter.all => Icons.grid_view_rounded,
+        _SurveyFilter.pending => Icons.assignment_outlined,
+        _SurveyFilter.drafts => Icons.edit_note_rounded,
+        _SurveyFilter.completed => Icons.cloud_done_rounded,
+      };
+
+  /// Two of these map onto a real [SyncStatus], so they take that status's
+  /// own color — the same one the matching badge uses elsewhere. `pending`
+  /// (assigned but not started) isn't literally `SyncStatus.pending`, but
+  /// "work still owed" is what amber means throughout this app, so it
+  /// borrows the same tone. `all` takes the brand accent since it isn't a
+  /// status at all.
+  Color colorFor(ThemeData theme) => switch (this) {
+        _SurveyFilter.all => theme.colorScheme.secondary,
+        _SurveyFilter.pending => SyncStatus.pending.colorFor(theme.brightness),
+        _SurveyFilter.drafts => SyncStatus.draft.colorFor(theme.brightness),
+        _SurveyFilter.completed => SyncStatus.synced.colorFor(theme.brightness),
+      };
+}
+
+/// The four stat cards, which double as the status filter — see the call
+/// site for why the separate filter control was folded into these.
+class _SurveyFilterCards extends StatelessWidget {
+  const _SurveyFilterCards({
+    required this.selected,
+    required this.counts,
+    required this.onSelected,
   });
 
-  final int total;
-  final int drafts;
-  final int completed;
+  final _SurveyFilter selected;
+  final Map<_SurveyFilter, int> counts;
+  final ValueChanged<_SurveyFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6)),
-      ),
+    return IntrinsicHeight(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: _MetricItem(
-              label: 'Asignadas',
-              value: '$total',
-              icon: Icons.assignment_outlined,
-              color: theme.colorScheme.secondary,
+          for (final (index, filter) in _SurveyFilter.values.indexed) ...[
+            if (index > 0) const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: _FilterCard(
+                index: index,
+                filter: filter,
+                value: counts[filter] ?? 0,
+                selected: filter == selected,
+                onTap: () => onSelected(filter),
+              ),
             ),
-          ),
-          Container(
-            height: 36,
-            width: 1,
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-          ),
-          Expanded(
-            child: _MetricItem(
-              label: 'Borradores',
-              value: '$drafts',
-              icon: Icons.edit_note_rounded,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          Container(
-            height: 36,
-            width: 1,
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-          ),
-          Expanded(
-            child: _MetricItem(
-              label: 'Enviadas',
-              value: '$completed',
-              icon: Icons.check_circle_outline_rounded,
-              color: theme.colorScheme.tertiary,
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _MetricItem extends StatelessWidget {
-  const _MetricItem({
-    required this.label,
+/// A "liquid glass" stat tile that is also the filter toggle for its own
+/// status: a translucent pane tinted by that status's color, a glowing icon
+/// disc, the count, and the label.
+///
+/// The glass is built from *flat* translucent layers, not a gradient — this
+/// app's design language has no gradients anywhere (see the project's
+/// flutter-ui-review skill, where a gradient app bar was explicitly
+/// rejected as muddy), and a real `BackdropFilter` blur would be wasted
+/// here anyway: these sit on a flat scaffold background, so there is
+/// nothing behind them worth blurring, only GPU cost. Stacking a tinted
+/// fill under a colored border gets the same depth read for free.
+///
+/// Entrance is staggered per [index] — the four tiles rise and scale in one
+/// after another rather than together, and their numbers count up from
+/// zero, so the row resolves as a small sequence instead of a static block
+/// appearing at once.
+///
+/// Labels are wrapped in a scale-down `FittedBox` rather than ellipsised:
+/// four tiles across a phone leaves each one narrow, and a filter whose
+/// label reads "Borrado..." is a filter the user has to guess at. Shrinking
+/// the glyphs keeps every option fully readable at any width and at the
+/// app's 1.4x text-scale ceiling.
+class _FilterCard extends StatefulWidget {
+  const _FilterCard({
+    required this.index,
+    required this.filter,
     required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 4),
-            Text(
-              value,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
     required this.selected,
-    required this.onSelected,
+    required this.onTap,
   });
 
-  final String label;
+  final int index;
+  final _SurveyFilter filter;
+  final int value;
   final bool selected;
-  final VoidCallback onSelected;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final borderColor = selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
-    final bgColor = selected
-        ? theme.colorScheme.primary.withValues(alpha: 0.12)
-        : theme.colorScheme.surfaceContainerLow;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onSelected();
-        },
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-            border: Border.all(color: borderColor, width: selected ? 1.5 : 1.0),
-          ),
-          child: Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  State<_FilterCard> createState() => _FilterCardState();
 }
 
-/// The profile entry point pops in with a short delay then an elastic
-/// scale — arrives just after the greeting text finishes sliding in,
-/// reusing the same "pop" feel as the profile avatar and the nav bar's
-/// selected icon elsewhere in this app, rather than a third animation style
-/// for what's really the same kind of accent moment.
-class _BouncyProfileButton extends StatefulWidget {
-  const _BouncyProfileButton();
-
-  @override
-  State<_BouncyProfileButton> createState() => _BouncyProfileButtonState();
-}
-
-class _BouncyProfileButtonState extends State<_BouncyProfileButton> {
+class _FilterCardState extends State<_FilterCard> {
   bool _visible = false;
+  bool _pressed = false;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 140), () {
+    Future.delayed(Duration(milliseconds: 80 * widget.index), () {
       if (mounted) setState(() => _visible = true);
     });
   }
 
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: _visible ? 1 : 0.3,
-      duration: const Duration(milliseconds: 480),
-      curve: Curves.elasticOut,
-      child: IconButton(
-        icon: const Icon(Icons.account_circle_outlined),
-        tooltip: 'Mi perfil',
-        onPressed: () => context.push(RoutePaths.profile),
+    final theme = Theme.of(context);
+    final color = widget.filter.colorFor(theme);
+    final isOn = widget.selected;
+
+    return Semantics(
+      button: true,
+      selected: isOn,
+      label: '${widget.filter.label}, ${widget.value}',
+      child: GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapCancel: () => _setPressed(false),
+        onTapUp: (_) => _setPressed(false),
+        onTap: () {
+          if (!isOn) HapticFeedback.selectionClick();
+          widget.onTap();
+        },
+        child: AnimatedSlide(
+          offset: _visible ? Offset.zero : const Offset(0, 0.25),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: _visible ? 1 : 0,
+            duration: const Duration(milliseconds: 320),
+            child: AnimatedScale(
+              scale: _visible ? (_pressed ? 0.94 : 1) : 0.9,
+              duration: Duration(milliseconds: _pressed ? 120 : 460),
+              curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: 6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isOn ? 0.18 : 0.06),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                  border: Border.all(
+                    color: color.withValues(alpha: isOn ? 0.95 : 0.20),
+                    width: isOn ? 2 : 1.2,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isOn ? color : color.withValues(alpha: 0.14),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        widget.filter.icon,
+                        size: 18,
+                        color: isOn ? Colors.white : color,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TweenAnimationBuilder<int>(
+                      tween: IntTween(begin: 0, end: widget.value),
+                      duration: const Duration(milliseconds: 700),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, animated, _) => Text(
+                        '$animated',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isOn ? color : theme.colorScheme.onSurface,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.filter.label,
+                        maxLines: 1,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: isOn ? color : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: isOn ? FontWeight.w700 : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

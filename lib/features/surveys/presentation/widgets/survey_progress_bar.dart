@@ -12,6 +12,7 @@ class SurveyProgressBar extends StatelessWidget {
     required this.current,
     required this.total,
     this.sectionTitle,
+    this.isSaving = false,
   });
 
   final double progress;
@@ -20,6 +21,11 @@ class SurveyProgressBar extends StatelessWidget {
 
   /// Current section title if multi-section.
   final String? sectionTitle;
+
+  /// Whether the draft is being written to disk right now. Shown here as a
+  /// small status line rather than in the bottom action bar — see the call
+  /// site in `survey_fill_screen.dart` for why it moved.
+  final bool isSaving;
 
   @override
   Widget build(BuildContext context) {
@@ -60,19 +66,65 @@ class SurveyProgressBar extends StatelessWidget {
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                ),
-                child: Text(
-                  '$percent%',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.secondary,
-                    fontWeight: FontWeight.bold,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: isSaving
+                        ? Row(
+                            key: const ValueKey('saving'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 11,
+                                height: 11,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Guardando…',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            key: const ValueKey('saved'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.cloud_done_rounded, size: 13, color: theme.colorScheme.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Guardado',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
-                ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    ),
+                    child: Text(
+                      '$percent%',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.secondary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -103,29 +103,48 @@ class BrandGrecasAccent extends StatelessWidget {
     // Locked aspect ratio, not a bare `Image` sizing itself off the decoded
     // asset — see the class doc for why that was the actual source of the
     // visible seams between tiles.
+    //
+    // `Image`'s own `opacity` parameter, *not* an `Opacity` widget wrapping
+    // the whole column: `Opacity` over a non-trivial subtree forces Skia to
+    // allocate an offscreen layer (`saveLayer`) and composite it every
+    // frame — for a full-screen-tall stack of a dozen images that is one of
+    // the most expensive things this app draws. `Image.opacity` folds the
+    // alpha into the paint instead, with no extra layer, and also lets each
+    // tile stay `const`-friendly and independently cached.
     final tileImage = AspectRatio(
       aspectRatio: 1 / _grecasAspectRatio,
-      child: Image.asset(BrandAssets.grecas, fit: BoxFit.fill),
+      child: Image.asset(
+        BrandAssets.grecas,
+        fit: BoxFit.fill,
+        opacity: AlwaysStoppedAnimation(opacity),
+        // The pattern is decorative texture, not content — announcing a
+        // dozen identical images to a screen reader is pure noise.
+        excludeFromSemantics: true,
+        gaplessPlayback: true,
+      ),
     );
     final tile = horizontal ? RotatedBox(quarterTurns: 1, child: tileImage) : tileImage;
     final tiles = List.generate(_tileCount, (_) => tile);
 
     return IgnorePointer(
-      child: ClipRect(
-        child: Align(
-          alignment: alignment,
-          child: SizedBox(
-            // Only the cross axis is fixed here — `null` leaves the tiling
-            // axis passing through whatever `Align` offered, which
-            // `OverflowBox` below then overrides to unbounded.
-            width: horizontal ? null : thickness,
-            height: horizontal ? thickness : null,
-            child: OverflowBox(
-              maxWidth: horizontal ? double.infinity : null,
-              maxHeight: horizontal ? null : double.infinity,
-              alignment: Alignment.center,
-              child: Opacity(
-                opacity: opacity,
+      // This is a static background behind content that animates constantly
+      // (staggered entrances, list scrolling, button presses). Without its
+      // own layer it gets re-rasterised along with them; with one it is
+      // painted once and then only composited.
+      child: RepaintBoundary(
+        child: ClipRect(
+          child: Align(
+            alignment: alignment,
+            child: SizedBox(
+              // Only the cross axis is fixed here — `null` leaves the tiling
+              // axis passing through whatever `Align` offered, which
+              // `OverflowBox` below then overrides to unbounded.
+              width: horizontal ? null : thickness,
+              height: horizontal ? thickness : null,
+              child: OverflowBox(
+                maxWidth: horizontal ? double.infinity : null,
+                maxHeight: horizontal ? null : double.infinity,
+                alignment: Alignment.center,
                 child: horizontal
                     ? Row(mainAxisSize: MainAxisSize.min, children: tiles)
                     : Column(mainAxisSize: MainAxisSize.min, children: tiles),

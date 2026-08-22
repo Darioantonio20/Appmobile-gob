@@ -3,16 +3,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/offline_banner.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import '../../surveys/presentation/survey_providers.dart';
 
-/// Persistent bottom-navigation shell for the two top-level sections. Kept
-/// to just two destinations on purpose — the target audience benefits far
-/// more from "always know where the two things are" than from a richer nav
-/// structure.
+/// Index of the "Perfil" destination — the one entry that pushes a route
+/// instead of switching shell branch (see `onDestinationSelected`). Named
+/// rather than a bare `2` so the special case stays obvious if the bar ever
+/// gains another destination.
+const int _profileDestinationIndex = 2;
+
+/// Persistent bottom-navigation shell for the app's top-level sections.
+/// Deliberately small — the target audience benefits far more from "always
+/// know where the things are" than from a richer nav structure.
 class MainShell extends ConsumerWidget {
   const MainShell({super.key, required this.navigationShell});
 
@@ -63,8 +69,20 @@ class MainShell extends ConsumerWidget {
               elevation: 0,
               labelTextStyle: WidgetStateProperty.all(const TextStyle(color: iconColor)),
               onDestinationSelected: (index) {
-                if (index != navigationShell.currentIndex) {
-                  HapticFeedback.selectionClick();
+                HapticFeedback.selectionClick();
+                // "Perfil" is a pushed route, not a shell branch — it has
+                // no `StatefulShellBranch` of its own, so it can't be
+                // `goBranch`ed to. It lives here anyway because it belongs
+                // with the other two destinations *visually*: it used to be
+                // a lone floating button on the survey screen, which made
+                // it the only navigation control not in the nav bar.
+                // Pushing (rather than switching branch) also keeps the
+                // selected branch highlighted underneath, which is honest —
+                // the user is going *on top of* their current tab, and
+                // comes back to it.
+                if (index == _profileDestinationIndex) {
+                  context.push(RoutePaths.profile);
+                  return;
                 }
                 navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
               },
@@ -85,6 +103,11 @@ class MainShell extends ConsumerWidget {
                           child: const _BouncyIcon(Icons.sync_rounded, color: iconColor),
                         ),
                   label: 'Sincronización',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.person_outline_rounded, color: iconColor),
+                  selectedIcon: _BouncyIcon(Icons.person_rounded, color: iconColor),
+                  label: 'Perfil',
                 ),
               ],
             ),

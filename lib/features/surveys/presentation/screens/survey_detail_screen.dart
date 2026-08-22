@@ -28,20 +28,41 @@ class SurveyDetailScreen extends ConsumerWidget {
     final surveyAsync = ref.watch(surveyByIdProvider(surveyId));
     final responsesAsync = ref.watch(responsesForSurveyProvider(surveyId));
 
+    // No app bar, same treatment as the profile screen: the "Detalle de la
+    // encuesta" title and the bar's bottom separator were removed by
+    // explicit design direction. The survey's own name is the first thing
+    // in the card below, so the title only repeated it a line higher, and
+    // the separator cut the screen in two for no structural reason. The
+    // back control survives on its own, floated over the content.
     return Scaffold(
-      appBar: const BrandAppBar(title: Text('Detalle de la encuesta')),
-      body: surveyAsync.when(
-        loading: () => const LoadingView(),
-        // `surveyByIdProvider` -> `getSurvey` throws the [AppFailure] itself
-        // for a definitive backend rejection (see
-        // `SurveyRepositoryImpl.getSurvey`) — unwrap it so its exact
-        // message (e.g. "no existe o no tienes permiso") shows verbatim
-        // instead of a generic one.
-        error: (error, _) => ErrorStateView(
-          failure: error is AppFailure ? error : AppFailure.unknown(null, error),
-          onRetry: () => ref.invalidate(surveyByIdProvider(surveyId)),
-        ),
-        data: (survey) {
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Outside the `when` on purpose: the back control has to exist
+            // in *every* state, including the error and "no disponible"
+            // ones. Inside, a failed load would leave the user on a screen
+            // with no way out but the system gesture.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: BrandBackButton(color: Theme.of(context).colorScheme.tertiary),
+              ),
+            ),
+            Expanded(
+              child: surveyAsync.when(
+                loading: () => const LoadingView(),
+                // `surveyByIdProvider` -> `getSurvey` throws the [AppFailure]
+                // itself for a definitive backend rejection (see
+                // `SurveyRepositoryImpl.getSurvey`) — unwrap it so its exact
+                // message (e.g. "no existe o no tienes permiso") shows
+                // verbatim instead of a generic one.
+                error: (error, _) => ErrorStateView(
+                  failure: error is AppFailure ? error : AppFailure.unknown(null, error),
+                  onRetry: () => ref.invalidate(surveyByIdProvider(surveyId)),
+                ),
+                data: (survey) {
           if (survey == null) {
             return const EmptyStateView(
               title: 'Encuesta no disponible',
@@ -55,7 +76,9 @@ class SurveyDetailScreen extends ConsumerWidget {
 
           return ResponsiveCenter(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, 120),
+              // Top padding trimmed to `sm`: the back-button row above
+              // already supplies the breathing room the old app bar used to.
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 120),
               children: [
                 // Main Survey Overview Card
                 StaggeredFadeSlideIn(
@@ -245,7 +268,11 @@ class SurveyDetailScreen extends ConsumerWidget {
               ],
             ),
           );
-        },
+                },
+              ),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: surveyAsync.valueOrNull == null
           ? null

@@ -28,14 +28,27 @@ class ProfileScreen extends ConsumerWidget {
         .where((r) => r.status == SyncStatus.synced)
         .length;
 
+    // No app bar at all on this screen, by explicit design direction: the
+    // "Mi perfil" title, the email under it and the bar's own bottom border
+    // were all removed so the content starts at the very top of the safe
+    // area. Everything the header used to say is already on the card right
+    // below it (name, email, avatar), so the bar was pure repetition
+    // costing a whole toolbar's worth of vertical space. The back control
+    // survives on its own, floated over the content — see
+    // `BrandBackButton`'s doc comment.
     return Scaffold(
-      appBar: const BrandAppBar(
-        title: Text('Mi perfil'),
-      ),
-      body: ResponsiveCenter(
+      body: SafeArea(
+        child: ResponsiveCenter(
         child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            const SizedBox(height: AppSpacing.sm),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: BrandBackButton(color: theme.colorScheme.tertiary),
+              ),
+            ),
             StaggeredFadeSlideIn(
               index: 0,
               beginOffset: const Offset(0, 0.1),
@@ -139,7 +152,12 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
+            // Tightened from xl/xxl throughout, per explicit feedback that
+            // the two cards, the logout button and the footer logo were
+            // drifting apart down a mostly-empty screen — pulling them
+            // together is what lets the logo sit just under the button
+            // instead of stranded at the bottom.
+            const SizedBox(height: AppSpacing.sm),
             StaggeredFadeSlideIn(
               index: 1,
               child: Container(
@@ -207,17 +225,14 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xxl),
+            const SizedBox(height: AppSpacing.lg),
             StaggeredFadeSlideIn(
               index: 2,
-              // Narrower than a full-bleed button on purpose — this is the
-              // one destructive-ish action on the screen, and everything
-              // else here (header, stats card) already spans edge to edge,
-              // so pulling it in on the sides is what actually makes it
-              // read as a secondary, deliberate action instead of matching
-              // the primary content's weight.
+              // Full width, matching the two cards above it — it was inset
+              // on the sides before, which made it read as belonging to a
+              // different column than everything else on the screen.
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                padding: EdgeInsets.zero,
                 child: AppButton(
                   label: 'Cerrar sesión',
                   icon: Icons.logout_rounded,
@@ -226,7 +241,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xxl),
+            const SizedBox(height: AppSpacing.md),
             StaggeredFadeSlideIn(
               index: 3,
               child: Center(
@@ -241,6 +256,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
           ],
+        ),
         ),
       ),
     );

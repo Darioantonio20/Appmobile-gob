@@ -31,19 +31,83 @@ class SurveyFillScreen extends ConsumerWidget {
       }
     });
 
+    // No app bar: its title and bottom separator were removed by explicit
+    // design direction. The survey's name is now presented properly in the
+    // header below (with an icon and a "Llenando encuesta" caption) instead
+    // of as a bare line of toolbar text, and the back control matches the
+    // profile screen's.
     return Scaffold(
-      appBar: BrandAppBar(
-        title: Text(state is SurveyFillReady ? state.survey.title : 'Encuesta'),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _FillHeader(title: state is SurveyFillReady ? state.survey.title : 'Encuesta'),
+            Expanded(
+              child: switch (state) {
+                SurveyFillLoading() => const LoadingView(message: 'Cargando encuesta…'),
+                SurveyFillNotFound(:final message) => EmptyStateView(
+                    title: 'No se encontró la encuesta',
+                    message: message ?? 'Vuelve a la lista e inténtalo de nuevo.',
+                    icon: Icons.search_off_rounded,
+                  ),
+                SurveyFillReady() => _FillBody(state: state, controller: ref.read(provider.notifier)),
+              },
+            ),
+          ],
+        ),
       ),
-      body: switch (state) {
-        SurveyFillLoading() => const LoadingView(message: 'Cargando encuesta…'),
-        SurveyFillNotFound(:final message) => EmptyStateView(
-            title: 'No se encontró la encuesta',
-            message: message ?? 'Vuelve a la lista e inténtalo de nuevo.',
-            icon: Icons.search_off_rounded,
+    );
+  }
+}
+
+/// Back control plus the survey's name. The name used to be plain app-bar
+/// text, which read as unfinished for what is the single most important
+/// label on the screen — it's now paired with an icon badge and a caption
+/// saying what the user is actually doing, and gets two lines before it
+/// truncates rather than one.
+class _FillHeader extends StatelessWidget {
+  const _FillHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BrandBackButton(color: theme.colorScheme.tertiary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Llenando encuesta',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.secondary,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-        SurveyFillReady() => _FillBody(state: state, controller: ref.read(provider.notifier)),
-      },
+        ],
+      ),
     );
   }
 }
@@ -65,6 +129,12 @@ class _FillBody extends StatelessWidget {
           current: state.sectionNumber,
           total: state.totalSections,
           sectionTitle: state.totalSections > 1 ? section.title : null,
+          // Autosave status moved up here from the bottom action bar, where
+          // it sat wedged between the back arrow and "Siguiente" and read
+          // as a third, broken button. It is status, not an action, so it
+          // belongs with the other status on screen — and the bottom bar is
+          // now just the two things you can actually press.
+          isSaving: state.isSaving,
         ),
         Expanded(
           child: GestureDetector(
@@ -94,7 +164,7 @@ class _FillBody extends StatelessWidget {
                     children: [
                       for (final (index, question) in state.currentQuestions.indexed)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                           child: _QuestionCard(
                             questionNumber: index + 1,
                             question: question,
@@ -154,64 +224,69 @@ class _QuestionCard extends StatelessWidget {
           width: hasError ? 1.5 : 1.0,
         ),
       ),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      // Tightened throughout after feedback that these cards ate too much
+      // of the screen: the number badge and the required/optional tag now
+      // share the *same* line as the question text instead of occupying a
+      // header row of their own above it, and the vertical rhythm dropped a
+      // step (md -> sm) between every block. Same information, roughly a
+      // third less height per question.
+      padding: const EdgeInsets.all(AppSpacing.sm + 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Number Badge + Required/Optional Tag
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer.withValues(alpha: 0.7),
                   shape: BoxShape.circle,
                 ),
-                child: Center(
+                child: Text(
+                  '$questionNumber',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  question.text,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.secondary,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              if (question.isRequired) ...[
+                const SizedBox(width: AppSpacing.xs),
+                // Only "Obligatoria" earns a tag now. "Opcional" was the
+                // default state on most questions, so tagging it added a
+                // chip to nearly every card to say "nothing special here".
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.tertiary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
                   child: Text(
-                    '$questionNumber',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                    'Obligatoria',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.tertiary,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: question.isRequired
-                      ? theme.colorScheme.tertiary.withValues(alpha: 0.1)
-                      : theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                ),
-                child: Text(
-                  question.isRequired ? 'Obligatoria' : 'Opcional',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: question.isRequired
-                        ? theme.colorScheme.tertiary
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: question.isRequired ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-
-          // Question Title
-          Text(
-            question.text,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.secondary,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
 
           // Question Input Field
           QuestionField(
@@ -269,57 +344,10 @@ class _FillNavigationBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
+            // Just the two real actions now — the autosave status that used
+            // to sit between them moved into the progress card at the top
+            // of the screen.
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                transitionBuilder: (child, animation) =>
-                    FadeTransition(opacity: animation, child: child),
-                child: state.isSaving
-                    ? Row(
-                        key: const ValueKey('saving'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Flexible(
-                            child: Text(
-                              'Guardando…',
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        key: const ValueKey('saved'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check_circle_outline_rounded, size: 14, color: theme.colorScheme.primary),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              'Guardado',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              flex: 3,
               child: AppButton(
                 label: state.isLastSection ? 'Enviar encuesta' : 'Siguiente',
                 icon: state.isLastSection ? Icons.send_rounded : Icons.arrow_forward_rounded,
